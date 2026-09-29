@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "ACVEL Consumidor",
+    "slug": "acvel-consumidor",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "br.com.acvel.consumidor"
+    },
+    "android": {
+      "package": "br.com.acvel.consumidor",
+      "adaptiveIcon": {
+        "backgroundColor": "#094496",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#183760",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#101828"
+          }
+        }
+      ],
+      "expo-secure-store",
+      "expo-font",
+      "expo-web-browser",
+      "expo-status-bar",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "A ACVEL usa suas fotos para anexar a conta de luz e documentos ao seu cadastro.",
+          "cameraPermission": "A ACVEL usa a câmera para fotografar a conta de luz e documentos do seu cadastro."
+        }
+      ],
+      "expo-sharing"
+    ],
+    "scheme": "acvel",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
