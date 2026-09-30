@@ -72,7 +72,7 @@ function referralLink(code: string): string {
 async function loadOverview(): Promise<BenefitsOverview> {
   const [wallet, ledger, referral, products] = await Promise.all([
     api.get("business", "/v1/pedidos/me/context", walletSchema),
-    api.get("business", "/v1/pontos/me", zList(ledgerEntrySchema), { query: { perPage: 100 } }),
+    api.get("business", "/v1/pontos/me", zList(ledgerEntrySchema), { query: { page: 1, perPage: 100 } }),
     api.get("business", "/v1/consumidores/me/indicacao", referralSchema),
     api.get("business", "/v1/produtos", zList(productSchema), { query: { page: 1, per_page: 50, ativo: "true", tipo_publico: "CONSUMIDOR" } })
   ]);

@@ -21,6 +21,8 @@ export const consumerSchema = z.object({
   telefone: zStringOrNull,
   codigo_indicacao: zStringOrNull,
   dg_status: zStringOrNull,
+  status: zStringOrNull,
+  compensando: z.boolean().nullish(),
   preferencia_cobranca: z.enum(["UNIFICADA", "SEPARADA"]).nullish(),
   created_at: zStringOrNull
 });

@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { configResult } from "@/config/env";
+import { config, configResult } from "@/config/env";
+import { isFirebaseConfigured } from "@/services/firebase/firebase";
 import { authService, onUnauthorized } from "@/services/auth.service";
 import type { AccountIdentity } from "@/types/domain";
 
@@ -64,4 +65,4 @@ function expireSession(): void {
 
 onUnauthorized(expireSession);
 // With an invalid configuration the identity provider is never initialised (fail closed).
-if (configResult.ok) authService.onSessionLost(expireSession);
+if (configResult.ok && (config.useMocks || isFirebaseConfigured())) authService.onSessionLost(expireSession);

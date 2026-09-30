@@ -4,15 +4,26 @@ import { api } from "../api/apiClient";
 import { uploadToPresignedUrl } from "../api/file-transfer";
 import { zId, zList, zStringOrNull } from "../api/schema";
 
-/** Business-API document types (`tipo`). */
-export type BusinessDocumentType = "RG" | "CNH" | "CNPJ" | "FATURA_ENERGIA" | "COMPROVANTE_RESIDENCIA" | "CONTRATO" | "OUTRO";
+/** Business-API document types (`tipo`, Swagger PresignUploadDto/ConfirmUploadDto). */
+export type BusinessDocumentType =
+  | "RG"
+  | "CNH"
+  | "CPF"
+  | "CNPJ"
+  | "COMPROVANTE_RESIDENCIA"
+  | "CONTRATO_SOCIAL"
+  | "CONTRATO_ASSINADO"
+  | "PROCURACAO"
+  | "FATURA_ENERGIA"
+  | "TERMO_ADESAO"
+  | "OUTRO";
 
 const KIND_TO_TYPE: Record<DocumentKind, BusinessDocumentType> = {
   RG: "RG",
   CNH: "CNH",
   CNPJ: "CNPJ",
   CONTA_DE_LUZ: "FATURA_ENERGIA",
-  CONTRATO: "CONTRATO",
+  CONTRATO: "CONTRATO_ASSINADO",
   OUTRO: "OUTRO"
 };
 
@@ -26,8 +37,9 @@ function kindOf(type: string): DocumentKind {
       return "CNPJ";
     case "FATURA_ENERGIA":
       return "CONTA_DE_LUZ";
-    case "CONTRATO":
     case "CONTRATO_ASSINADO":
+    case "CONTRATO_SOCIAL":
+    case "TERMO_ADESAO":
       return "CONTRATO";
     default:
       return "OUTRO";

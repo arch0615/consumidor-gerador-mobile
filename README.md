@@ -8,13 +8,13 @@ Not a WebView wrapper and not a port of the web app: navigation, forms, charts a
 
 ## 1. Installation
 
-Requirements: Node 20+ (tested on 24), npm, and either Expo Go / a development build on a device, an Android emulator or the iOS simulator (macOS).
+Requirements: Node 20+ (tested on 24), npm, Android SDK (or macOS for iOS). API mode uses native Firebase, so it runs in a **development build** (`npx expo run:android`), not Expo Go; mock mode also works in Expo Go.
 
 ```bash
 cd consumidor-gerador-mobile
 npm install
 cp .env.example .env      # then fill it in (see below)
-npx expo start            # press a (Android), i (iOS) or scan the QR with Expo Go
+npx expo run:android      # development build (API mode); `npx expo start` for mock mode in Expo Go
 ```
 
 Environment (`.env`, all `EXPO_PUBLIC_*`, embedded in the bundle — no secrets):
@@ -26,7 +26,7 @@ Environment (`.env`, all `EXPO_PUBLIC_*`, embedded in the bundle — no secrets)
 | `EXPO_PUBLIC_AUTH_API_URL` | API mode | Auth API base URL (consumidor-gerador-api or legacy auth-api), without `/v1` |
 | `EXPO_PUBLIC_BUSINESS_API_URL` | API mode | Business API base URL |
 | `EXPO_PUBLIC_RATEIO_API_URL` | API mode | Rateio API base URL |
-| `EXPO_PUBLIC_FIREBASE_API_KEY` / `_AUTH_DOMAIN` / `_PROJECT_ID` / `_APP_ID` | API mode | Same Firebase project as the web portal |
+| _(no Firebase env vars)_ | API mode | Firebase is configured natively: `firebase/google-services-android.json` + `firebase/GoogleService-Info.plist` (id `com.acvel.app`), wired through `app.json` `googleServicesFile` |
 | `EXPO_PUBLIC_PORTAL_URL` | – | Web portal origin for referral links |
 | `EXPO_PUBLIC_API_TIMEOUT_MS` / `EXPO_PUBLIC_CEP_API_URL` | – | Request timeout (20 s) / CEP lookup (BrasilAPI) |
 

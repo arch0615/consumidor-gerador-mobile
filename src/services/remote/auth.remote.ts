@@ -1,19 +1,18 @@
-import { FirebaseError } from "firebase/app";
 import {
   EmailAuthProvider,
+  getIdToken,
   onIdTokenChanged,
   reauthenticateWithCredential,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  type User
-} from "firebase/auth";
+  signOut as firebaseSignOut
+} from "@react-native-firebase/auth";
 import { z } from "zod";
 import type { AccountIdentity, RegisterInput } from "@/types/domain";
 import { AppError, toAppError, type AppErrorCode } from "@/utils/app-error";
 import { api } from "../api/apiClient";
 import type { AuthService, RestoreResult } from "../auth.service";
-import { firebaseAuth } from "../firebase/firebase";
+import { authStateReady, firebaseAuth, type FirebaseUser } from "../firebase/firebase";
 import { fetchMe } from "./me";
 
 // ── Firebase error mapping ────────────────────────────────────────────
@@ -33,10 +32,15 @@ const FIREBASE_ERRORS: Readonly<Record<string, AppErrorCode>> = {
   "auth/email-already-in-use": "EMAIL_ALREADY_REGISTERED"
 };
 
+/** Native Firebase errors (NativeFirebaseError) expose a string  such as "auth/invalid-credential". */
+function firebaseCode(error: unknown): string | null {
+  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : null;
+}
+
 function fromFirebase(error: unknown): AppError {
   if (error instanceof AppError) return error;
-  if (error instanceof FirebaseError) return new AppError(FIREBASE_ERRORS[error.code] ?? "UNKNOWN");
-  return toAppError(error);
+  const code = firebaseCode(error);
+  return code ? new AppError(FIREBASE_ERRORS[code] ?? "UNKNOWN") : toAppError(error);
 }
 
 // ── Implementation ────────────────────────────────────────────────────
@@ -66,10 +70,10 @@ async function validatedIdentity(): Promise<AccountIdentity> {
   }
 }
 
-async function currentUser(): Promise<User | null> {
+/** Waits for the native SDK to restore the persisted session, then returns the user. */
+async function currentUser(): Promise<FirebaseUser | null> {
   const auth = firebaseAuth();
-  await auth.authStateReady();
-  return auth.currentUser;
+  return auth.currentUser ?? (await authStateReady(auth));
 }
 
 export const remoteAuthService: AuthService = {
@@ -117,7 +121,8 @@ export const remoteAuthService: AuthService = {
     try {
       await sendPasswordResetEmail(firebaseAuth(), email.trim().toLowerCase());
     } catch (error) {
-      if (error instanceof FirebaseError && (error.code === "auth/user-not-found" || error.code === "auth/invalid-email")) return;
+      const code = firebaseCode(error);
+      if (code === "auth/user-not-found" || code === "auth/invalid-email") return;
       throw fromFirebase(error);
     }
   },
@@ -153,7 +158,7 @@ export const remoteAuthService: AuthService = {
     const user = firebaseAuth().currentUser;
     if (!user) return null;
     try {
-      return await user.getIdToken(forceRefresh);
+      return await getIdToken(user, forceRefresh);
     } catch (error) {
       const appError = fromFirebase(error);
       // Revoked/expired refresh token: no token (→ 401 handling); offline: surface the network error.

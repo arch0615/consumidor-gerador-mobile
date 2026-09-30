@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { PersonType, UserProfile } from "@/types/domain";
 import { isAppError } from "@/utils/app-error";
+import { devLog } from "@/utils/logger";
 import { onlyDigits } from "@/utils/format";
 import type { AccountService } from "../account.service";
 import { api } from "../api/apiClient";
@@ -45,12 +46,19 @@ export const remoteAccountService: AccountService = {
   async updateProfile(update) {
     // Canonical profile (Swagger: PATCH /v1/users/me) — returns the updated /auth/me payload.
     const me = await api.patch("auth", "/v1/users/me", meSchema, { body: { displayName: update.displayName.trim(), phoneNumber: update.phone } });
-    // Keep the business consumer record in sync (same as the web portal's profile save).
+    // Keep the business consumer record in sync (Swagger UpdateConsumidorDto: nome_completo, celular).
     const consumer = await fetchConsumer();
     if (consumer) {
-      await api.patch("business", `/v1/consumidores/${encodeURIComponent(consumer.id)}`, zIgnoredBody, {
-        body: { nome_completo: update.displayName.trim(), celular: update.phone, whatsapp: update.phone }
-      });
+      try {
+        await api.patch("business", `/v1/consumidores/${encodeURIComponent(consumer.id)}`, zIgnoredBody, {
+          body: { nome_completo: update.displayName.trim(), celular: update.phone }
+        });
+      } catch (error) {
+        // Consumers may not be allowed to edit their business record (403); the canonical
+        // profile above is already saved. Any other failure is reported.
+        if (!isAppError(error, "FORBIDDEN")) throw error;
+        devLog.warn("profile", "business consumer sync not permitted (403); auth profile updated");
+      }
     }
     return toProfile(me, consumer ? { ...consumer, nome_completo: update.displayName.trim(), celular: update.phone } : null);
   },

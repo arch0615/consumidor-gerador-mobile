@@ -41,3 +41,7 @@ yarn-error.*
 /ios
 /android
 .expo-export-check/
+
+# live API validation (local)
+.live-report.json
+.env.test.local

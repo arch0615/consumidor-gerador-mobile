@@ -13,7 +13,7 @@ Screen (src/app)  →  Hook (src/features/*/hooks, TanStack Query)  →  Service
 - Each `*.service.ts` exports `config.useMocks ? mockX : remoteX`. Screens and hooks are identical in both modes.
 - `services/api/apiClient.ts` is the only HTTP entry point: base URL per API from env, `Authorization: Bearer <Firebase ID token>`, one forced token refresh + retry on 401 then sign-out, timeout, error normalisation to `AppError`, Zod validation of every response, dev logging (method, path, status, duration only).
 - `services/api/file-transfer.ts`: native uploads with progress (presigned URLs, multipart OCR) and authenticated downloads (invoice PDF).
-- `services/firebase/`: Firebase JS SDK with its session persisted in the Keychain/Keystore (chunked Secure Store adapter), never in AsyncStorage.
+- `services/firebase/`: native Firebase (`@react-native-firebase/app` + `/auth`) configured from the platform files (`app.json` `googleServicesFile`); session persisted and tokens refreshed by the native SDK. Live status: [live-api-validation.md](live-api-validation.md).
 
 ## 2. Contract sources
 

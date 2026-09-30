@@ -8,10 +8,11 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "br.com.acvel.consumidor"
+      "bundleIdentifier": "com.acvel.app",
+      "googleServicesFile": "./firebase/GoogleService-Info.plist"
     },
     "android": {
-      "package": "br.com.acvel.consumidor",
+      "package": "com.acvel.app",
       "adaptiveIcon": {
         "backgroundColor": "#094496",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -19,7 +20,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "googleServicesFile": "./firebase/google-services-android.json"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -51,7 +53,24 @@
           "cameraPermission": "A ACVEL usa a câmera para fotografar a conta de luz e documentos do seu cadastro."
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "@react-native-firebase/app",
+        {
+          "ios": {
+            "disableSPM": true
+          }
+        }
+      ],
+      "@react-native-firebase/auth",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
     ],
     "scheme": "acvel",
     "experiments": {

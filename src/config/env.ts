@@ -5,8 +5,9 @@ import { z } from "zod";
  *
  * Expo inlines EXPO_PUBLIC_* only when referenced statically
  * (`process.env.EXPO_PUBLIC_X`), so every variable is read explicitly below.
- * These values ship inside the app bundle: never put secrets here (Firebase
- * web API keys are public identifiers, not secrets).
+ * These values ship inside the app bundle: never put secrets here.
+ * Firebase is configured natively from google-services-android.json /
+ * GoogleService-Info.plist (app.json googleServicesFile), not from env vars.
  */
 const optionalUrl = z
   .string()
@@ -25,12 +26,6 @@ const envSchema = z
     businessApiUrl: optionalUrl.default(""),
     rateioApiUrl: optionalUrl.default(""),
     apiTimeoutMs: z.coerce.number().int().min(1000).max(120_000).default(20_000),
-    firebase: z.object({
-      apiKey: z.string().trim().default(""),
-      authDomain: z.string().trim().default(""),
-      projectId: z.string().trim().default(""),
-      appId: z.string().trim().default("")
-    }),
     cepApiUrl: optionalUrl.default("https://brasilapi.com.br/api/cep/v2"),
     portalUrl: optionalUrl.default("")
   })
@@ -51,9 +46,6 @@ const envSchema = z
         ctx.addIssue({ code: "custom", path: [key], message: `${name} must use https in production` });
       }
     }
-    for (const [key, value] of Object.entries(env.firebase)) {
-      if (value === "") ctx.addIssue({ code: "custom", path: ["firebase", key], message: "Firebase config is required when mocks are off" });
-    }
   });
 
 export type AppConfig = z.infer<typeof envSchema>;
@@ -70,12 +62,6 @@ export function parseConfig(raw: Record<string, string | undefined>): ConfigResu
     businessApiUrl: blankToUndefined(raw.EXPO_PUBLIC_BUSINESS_API_URL),
     rateioApiUrl: blankToUndefined(raw.EXPO_PUBLIC_RATEIO_API_URL),
     apiTimeoutMs: blankToUndefined(raw.EXPO_PUBLIC_API_TIMEOUT_MS),
-    firebase: {
-      apiKey: blankToUndefined(raw.EXPO_PUBLIC_FIREBASE_API_KEY),
-      authDomain: blankToUndefined(raw.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN),
-      projectId: blankToUndefined(raw.EXPO_PUBLIC_FIREBASE_PROJECT_ID),
-      appId: blankToUndefined(raw.EXPO_PUBLIC_FIREBASE_APP_ID)
-    },
     cepApiUrl: blankToUndefined(raw.EXPO_PUBLIC_CEP_API_URL),
     portalUrl: blankToUndefined(raw.EXPO_PUBLIC_PORTAL_URL)
   });
@@ -90,10 +76,6 @@ export const configResult: ConfigResult = parseConfig({
   EXPO_PUBLIC_BUSINESS_API_URL: process.env.EXPO_PUBLIC_BUSINESS_API_URL,
   EXPO_PUBLIC_RATEIO_API_URL: process.env.EXPO_PUBLIC_RATEIO_API_URL,
   EXPO_PUBLIC_API_TIMEOUT_MS: process.env.EXPO_PUBLIC_API_TIMEOUT_MS,
-  EXPO_PUBLIC_FIREBASE_API_KEY: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  EXPO_PUBLIC_FIREBASE_PROJECT_ID: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  EXPO_PUBLIC_FIREBASE_APP_ID: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
   EXPO_PUBLIC_CEP_API_URL: process.env.EXPO_PUBLIC_CEP_API_URL,
   EXPO_PUBLIC_PORTAL_URL: process.env.EXPO_PUBLIC_PORTAL_URL
 });
@@ -109,7 +91,6 @@ const FAIL_CLOSED: AppConfig = {
   businessApiUrl: "",
   rateioApiUrl: "",
   apiTimeoutMs: 20_000,
-  firebase: { apiKey: "", authDomain: "", projectId: "", appId: "" },
   cepApiUrl: "",
   portalUrl: ""
 };

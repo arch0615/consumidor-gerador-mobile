@@ -1,23 +1,42 @@
-import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, getReactNativePersistence, initializeAuth, type Auth } from "firebase/auth";
-import { config } from "@/config/env";
+import { getApp } from "@react-native-firebase/app";
+import { getAuth, onAuthStateChanged, type Auth, type User } from "@react-native-firebase/auth";
 import { AppError } from "@/utils/app-error";
-import { secureAuthStorage } from "./secure-persistence";
 
-let auth: Auth | null = null;
+/**
+ * Firebase via @react-native-firebase (native SDKs).
+ *
+ * The default app is created by the native layer at process start from
+ * `google-services-android.json` / `GoogleService-Info.plist` (app.json
+ * `googleServicesFile`) — exactly once, with no config values in JS. The
+ * signed-in user and its refresh token are persisted by the native SDK and
+ * restored on launch; ID tokens are refreshed natively.
+ */
+export type FirebaseAuth = Auth;
+export type FirebaseUser = User;
 
-/** Lazily initialised Firebase Auth (only in API mode; mocks never touch Firebase). */
-export function firebaseAuth(): Auth {
-  if (auth) return auth;
-  const { apiKey, authDomain, projectId, appId } = config.firebase;
-  if (!apiKey || !authDomain || !projectId || !appId) throw new AppError("NOT_CONFIGURED");
-  const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp({ apiKey, authDomain, projectId, appId });
+/** False when the native config files were not bundled (e.g. Expo Go or a misconfigured build). */
+export function isFirebaseConfigured(): boolean {
   try {
-    auth = initializeAuth(app, { persistence: getReactNativePersistence(secureAuthStorage) });
+    getApp();
+    return true;
   } catch {
-    // Fast Refresh re-evaluates this module: Auth may already be initialised.
-    auth = getAuth(app);
+    return false;
   }
+}
+
+export function firebaseAuth(): FirebaseAuth {
+  if (!isFirebaseConfigured()) throw new AppError("NOT_CONFIGURED");
+  const auth = getAuth();
   auth.languageCode = "pt-BR";
   return auth;
+}
+
+/** Resolves once the native SDK has restored (or not) the persisted session. */
+export function authStateReady(auth: FirebaseAuth): Promise<FirebaseUser | null> {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
 }

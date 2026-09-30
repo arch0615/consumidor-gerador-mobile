@@ -33,10 +33,13 @@ const faturaDetailSchema = faturaSchema.extend({
   desconto_aplicado: zNumberOrNull,
   economia_reais: zNumberOrNull,
   consumo_kwh: zNumberOrNull,
+  // Swagger FaturaResponseDto names it credito_compensado_kwh; energia_compensada_kwh kept for the legacy shape.
+  credito_compensado_kwh: zNumberOrNull,
   energia_compensada_kwh: zNumberOrNull,
   paga_em: zStringOrNull,
   metodo_pagamento: zStringOrNull,
   pdf_status: zStringOrNull,
+  pdf_path: zStringOrNull,
   itens_cobranca: z.array(z.object({ tipo: zStringOrNull, descricao: zStringOrNull, valor: zNumber.default(0) })).nullish(),
   fatura_distribuidora_referencia: z.object({ valorTotal: zNumberOrNull, vencimento: zStringOrNull }).nullish()
 });
@@ -44,10 +47,12 @@ const faturaDetailSchema = faturaSchema.extend({
 type Fatura = z.output<typeof faturaSchema>;
 type FaturaDetail = z.output<typeof faturaDetailSchema>;
 
-// ── Charge (GET /v1/pagamentos/cobrancas?fatura_id=) ──────────────────
+// ── Charge (GET /v1/pagamentos/cobrancas, Swagger CobrancaResponseDto) ─
 
 const cobrancaSchema = z.object({
   id: zId,
+  fatura_id: zStringOrNull,
+  metodo: zStringOrNull,
   status: z.string().default("PENDENTE"),
   valor: zNumberOrNull,
   pix_qr_code: zStringOrNull,
@@ -55,10 +60,13 @@ const cobrancaSchema = z.object({
   pix_copia_e_cola: zStringOrNull,
   pix_emv: zStringOrNull,
   pix_expira_em: zStringOrNull,
-  boleto_linha_digitavel: zStringOrNull,
+  boleto_codigo: zStringOrNull,
   boleto_codigo_barras: zStringOrNull,
+  boleto_linha_digitavel: zStringOrNull,
   boleto_url_pdf: zStringOrNull,
-  boleto_pdf_url: zStringOrNull
+  boleto_pdf_url: zStringOrNull,
+  confirmado_em: zStringOrNull,
+  created_at: zStringOrNull
 });
 
 type Cobranca = z.output<typeof cobrancaSchema>;
@@ -81,9 +89,21 @@ function chargeStatusOf(raw: string): ChargeStatus {
   }
 }
 
-async function fetchCharge(invoiceId: string): Promise<Cobranca | null> {
-  const charges = await api.get("rateio", "/v1/pagamentos/cobrancas", zList(cobrancaSchema), { query: { fatura_id: invoiceId } });
-  return charges[0] ?? null;
+function pixPayloadOf(charge: Cobranca): string {
+  return charge.pix_qr_code ?? charge.pix_copia_cola ?? charge.pix_copia_e_cola ?? charge.pix_emv ?? "";
+}
+
+/**
+ * An invoice may have several charges (per method, or re-issued after expiry).
+ * Prefer a confirmed one, then the newest charge carrying the payload the screen needs.
+ */
+async function fetchCharge(invoiceId: string, kind: "pix" | "boleto"): Promise<Cobranca | null> {
+  const charges = await api.get("rateio", "/v1/pagamentos/cobrancas", zList(cobrancaSchema), { query: { fatura_id: invoiceId, perPage: 50 } });
+  const confirmed = charges.find((charge) => chargeStatusOf(charge.status) === "CONFIRMADO");
+  if (confirmed) return confirmed;
+  const newestFirst = [...charges].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+  const hasPayload = (charge: Cobranca) => (kind === "pix" ? pixPayloadOf(charge) !== "" : Boolean(charge.boleto_linha_digitavel));
+  return newestFirst.find(hasPayload) ?? newestFirst[0] ?? null;
 }
 
 // ── Mapping ────────────────────────────────────────────────────────────
@@ -167,7 +187,7 @@ function toDetail(fatura: FaturaDetail, snapshotInvoice: SnapshotInvoice | undef
     })),
     utilityAmount,
     savings: fatura.economia_reais ?? snapshotInvoice?.economia_reais ?? fatura.desconto_aplicado ?? 0,
-    compensatedKwh: fatura.energia_compensada_kwh ?? snapshotInvoice?.energia_compensada_kwh ?? null,
+    compensatedKwh: fatura.credito_compensado_kwh ?? fatura.energia_compensada_kwh ?? snapshotInvoice?.energia_compensada_kwh ?? null,
     consumptionKwh: fatura.consumo_kwh ?? snapshotInvoice?.consumo_kwh ?? null,
     paidAt: fatura.paga_em ?? snapshotInvoice?.paga_em ?? null,
     paymentMethod: paymentMethodOf(fatura.metodo_pagamento ?? snapshotInvoice?.metodo_pagamento ?? null),
@@ -205,10 +225,12 @@ export const remoteInvoiceService: InvoiceService = {
   async list(filters) {
     let invoices: InvoiceSummary[] = [];
     try {
+      // Swagger: page, perPage/per_page, status — no competência filter, so the period is applied here.
       const faturas = await api.get("rateio", "/v1/faturas/me", zList(faturaSchema), {
-        query: { page: 1, per_page: 100, competencia_inicio: firstCompetencia(filters.periodMonths), status: filters.status === "PAID" ? "PAGA" : undefined }
+        query: { page: 1, perPage: 100, per_page: 100, status: filters.status === "PAID" ? "PAGA" : undefined }
       });
-      invoices = faturas.filter(isConsumerInvoice).map(toSummary);
+      const oldest = firstCompetencia(filters.periodMonths);
+      invoices = faturas.filter(isConsumerInvoice).map(toSummary).filter((invoice) => !invoice.competencia || invoice.competencia >= oldest);
     } catch (error) {
       if (!isAppError(error, "RESOURCE_NOT_FOUND")) throw error;
     }
@@ -236,9 +258,9 @@ export const remoteInvoiceService: InvoiceService = {
   downloadPdf: (invoiceId) => downloadAuthenticatedFile("rateio", `/v1/faturas/${encodeURIComponent(invoiceId)}/pdf`, `fatura-acvel-${invoiceId}.pdf`),
 
   async getPixCharge(invoiceId) {
-    const [charge, invoice] = await Promise.all([fetchCharge(invoiceId), remoteInvoiceService.get(invoiceId)]);
+    const [charge, invoice] = await Promise.all([fetchCharge(invoiceId, "pix"), remoteInvoiceService.get(invoiceId)]);
     if (!charge) return { invoiceId, amount: invoice.amount, emvCode: "", expiresAt: null, status: invoice.status === "PAGO" ? "CONFIRMADO" : "PROCESSANDO" };
-    const emvCode = charge.pix_qr_code ?? charge.pix_copia_cola ?? charge.pix_copia_e_cola ?? charge.pix_emv ?? "";
+    const emvCode = pixPayloadOf(charge);
     const status = chargeStatusOf(charge.status);
     return {
       invoiceId,
@@ -251,15 +273,14 @@ export const remoteInvoiceService: InvoiceService = {
   },
 
   async getChargeStatus(invoiceId) {
-    const charge = await fetchCharge(invoiceId);
+    const charge = await fetchCharge(invoiceId, "pix");
     if (!charge) return "PROCESSANDO";
     const status = chargeStatusOf(charge.status);
-    const hasPayload = Boolean(charge.pix_qr_code ?? charge.pix_copia_cola ?? charge.pix_copia_e_cola ?? charge.pix_emv);
-    return status === "AGUARDANDO" && !hasPayload ? "PROCESSANDO" : status;
+    return status === "AGUARDANDO" && !pixPayloadOf(charge) ? "PROCESSANDO" : status;
   },
 
   async getBoleto(invoiceId) {
-    const [charge, invoice] = await Promise.all([fetchCharge(invoiceId), remoteInvoiceService.get(invoiceId)]);
+    const [charge, invoice] = await Promise.all([fetchCharge(invoiceId, "boleto"), remoteInvoiceService.get(invoiceId)]);
     const digitableLine = onlyDigits(charge?.boleto_linha_digitavel ?? "");
     const rawStatus = charge ? chargeStatusOf(charge.status) : invoice.status === "PAGO" ? "CONFIRMADO" : "PROCESSANDO";
     const pdf = charge?.boleto_url_pdf ?? charge?.boleto_pdf_url ?? null;
@@ -268,7 +289,7 @@ export const remoteInvoiceService: InvoiceService = {
       amount: charge?.valor ?? invoice.amount,
       dueDate: invoice.dueDate,
       digitableLine,
-      barcode: onlyDigits(charge?.boleto_codigo_barras ?? "") || barcodeFromDigitableLine(digitableLine) || "",
+      barcode: onlyDigits(charge?.boleto_codigo ?? charge?.boleto_codigo_barras ?? "") || barcodeFromDigitableLine(digitableLine) || "",
       status: rawStatus === "AGUARDANDO" && !digitableLine ? "PROCESSANDO" : rawStatus,
       pdfUrl: pdf && /^https:\/\//.test(pdf) ? pdf : null
     };
@@ -276,7 +297,34 @@ export const remoteInvoiceService: InvoiceService = {
   },
 
   async listPayments() {
-    const snapshot = await fetchSnapshot();
+    const [chargesResult, snapshot] = await Promise.all([
+      api.get("rateio", "/v1/pagamentos/cobrancas", zList(cobrancaSchema), { query: { status: "CONFIRMADO", perPage: 100 } }).then(
+        (charges) => ({ ok: true as const, charges }),
+        (error: unknown) => ({ ok: false as const, error })
+      ),
+      fetchSnapshot()
+    ]);
+    const invoicesById = new Map(snapshot.invoices.map((invoice) => [invoice.id, invoice] as const));
+
+    if (chargesResult.ok && chargesResult.charges.length > 0) {
+      // Confirmed charges carry the real payment method and confirmation time.
+      return chargesResult.charges
+        .map((charge): PaymentRecord => {
+          const invoice = charge.fatura_id ? invoicesById.get(charge.fatura_id) : undefined;
+          return {
+            id: charge.id,
+            invoiceId: charge.fatura_id ?? "",
+            competencia: normaliseCompetencia(invoice?.competencia ?? null),
+            amount: charge.valor ?? invoice?.valor_total ?? 0,
+            paidAt: charge.confirmado_em ?? invoice?.paga_em ?? null,
+            method: paymentMethodOf(charge.metodo)
+          };
+        })
+        .sort((a, b) => (b.paidAt ?? b.competencia).localeCompare(a.paidAt ?? a.competencia));
+    }
+    if (!chargesResult.ok && !isAppError(chargesResult.error, "RESOURCE_NOT_FOUND") && !isAppError(chargesResult.error, "FORBIDDEN")) throw chargesResult.error;
+
+    // Legacy customers: paid invoices from the operational snapshot.
     return snapshot.invoices
       .filter((invoice) => snapshotInvoiceStatus(invoice) === "PAGO")
       .map(

@@ -45,6 +45,18 @@ describe("GET /v1/auth/me contract (consumidor-gerador-api `Me`)", () => {
   it("rejects a payload without userId", () => {
     expect(meSchema.safeParse({ ...me, userId: undefined }).success).toBe(false);
   });
+
+  it("accepts the legacy auth-api variants handled by the web portal", () => {
+    const legacy = {
+      user: { id: 42, email: "joao@example.com", nome_completo: "João Lima", tipo_usuario: "consumidor", phone_number: "+5511900000000" },
+      roles: ["consumidor_basico"],
+      permissions: [{ resource: "faturas", action: "READ" }]
+    };
+    const result = meSchema.parse(legacy);
+    expect(result.identity).toMatchObject({ userId: "42", firstName: "João", userType: "CONSUMIDOR", status: "ACTIVE", onboardingCompleted: false });
+    expect(result.identity.permissions[0]?.scope).toBeNull();
+    expect(result.phoneNumber).toBe("+5511900000000");
+  });
 });
 
 describe("rateio snapshot contract", () => {

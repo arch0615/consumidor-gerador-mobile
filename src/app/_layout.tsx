@@ -20,7 +20,19 @@ import { useAuthStore } from "@/stores/auth.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { ThemeProvider } from "@/theme";
 import { ConfigErrorScreen } from "@/components/states/ConfigErrorScreen";
-import { configResult } from "@/config/env";
+import { config, configResult } from "@/config/env";
+import { isFirebaseConfigured } from "@/services/firebase/firebase";
+
+/**
+ * Fail closed: invalid env, or API mode without the native Firebase config
+ * (google-services-android.json / GoogleService-Info.plist not bundled).
+ */
+const startupIssues: readonly string[] = !configResult.ok
+  ? configResult.issues
+  : !config.useMocks && !isFirebaseConfigured()
+    ? ["firebase: native config missing — add firebase/google-services-android.json and firebase/GoogleService-Info.plist, then rebuild (Expo Go cannot load them)"]
+    : [];
+const canStart = startupIssues.length === 0;
 
 void SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({ duration: 300, fade: true });
@@ -36,11 +48,11 @@ export default function RootLayout() {
   useEffect(() => {
     void usePreferencesStore.getState().hydrate();
     // Invalid configuration fails closed: no session restore, no API calls.
-    if (configResult.ok) void useAuthStore.getState().restore();
+    if (canStart) void useAuthStore.getState().restore();
   }, []);
 
   // Font failure falls back to system fonts rather than blocking the app.
-  const ready = (fontsLoaded || fontError !== null) && preferencesReady && (authStatus !== "restoring" || !configResult.ok);
+  const ready = (fontsLoaded || fontError !== null) && preferencesReady && (authStatus !== "restoring" || !canStart);
 
   useEffect(() => {
     if (ready) SplashScreen.hide();
@@ -53,13 +65,13 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
-            {configResult.ok ? (
+            {canStart ? (
               <NavigationTheme>
                 <RootNavigator />
                 {splashDone ? null : <AnimatedSplash onFinish={finishSplash} />}
               </NavigationTheme>
             ) : (
-              <ConfigErrorScreen issues={configResult.issues} />
+              <ConfigErrorScreen issues={startupIssues} />
             )}
           </ThemeProvider>
         </QueryClientProvider>
