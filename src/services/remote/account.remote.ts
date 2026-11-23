@@ -8,8 +8,8 @@ import { api } from "../api/apiClient";
 import { zIgnoredBody } from "../api/schema";
 import { authService } from "../auth.service";
 import { meSchema, type MeResult } from "./me";
-import { fetchConsumer, requireConsumer, type Consumer } from "./business";
-import { documentSignedUrl, listConsumerDocuments, uploadConsumerDocument } from "./documents";
+import { fetchConsumer, isConsumerOnboarded, requireConsumer, type Consumer } from "./business";
+import { listConsumerDocuments, openableDocumentUrl, uploadConsumerDocument } from "./documents";
 
 const deletionSchema = z
   .object({ id: z.string(), status: z.enum(["REQUESTED", "ANONYMIZED", "CANCELLED"]), requested_at: z.string() })
@@ -30,7 +30,7 @@ function toProfile(me: MeResult, consumer: Consumer | null): UserProfile {
     personType,
     document,
     onboardingStatus: onboarding === "SUSPENSO" || onboarding === null ? "DRAFT" : onboarding,
-    onboardingCompleted: me.identity.onboardingCompleted,
+    onboardingCompleted: me.identity.onboardingCompleted || isConsumerOnboarded(consumer),
     billingPreference: consumer?.preferencia_cobranca ?? "UNIFICADA",
     referralCode: consumer?.codigo_indicacao ?? "",
     memberSince: (consumer?.created_at ?? me.createdAt ?? new Date().toISOString()).slice(0, 10)
@@ -75,7 +75,7 @@ export const remoteAccountService: AccountService = {
     return uploadConsumerDocument(consumer.id, kind, file, "Documento enviado pelo aplicativo", onProgress);
   },
 
-  getDocumentUrl: (documentId) => documentSignedUrl(documentId),
+  getDocumentUrl: (documentId) => openableDocumentUrl(documentId),
 
   async changePassword(currentPassword, newPassword) {
     // 204; wrong current password → 422 INVALID_CURRENT_PASSWORD (mapped to INVALID_CREDENTIALS).

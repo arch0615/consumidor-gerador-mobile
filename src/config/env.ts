@@ -27,7 +27,11 @@ const envSchema = z
     rateioApiUrl: optionalUrl.default(""),
     apiTimeoutMs: z.coerce.number().int().min(1000).max(120_000).default(20_000),
     cepApiUrl: optionalUrl.default("https://brasilapi.com.br/api/cep/v2"),
-    portalUrl: optionalUrl.default("")
+    /** Consumer web portal origin (EXPO_PUBLIC_CONSUMIDOR_APP_URL; legacy EXPO_PUBLIC_PORTAL_URL). */
+    consumidorAppUrl: optionalUrl.default(""),
+    /** Combined "Termos de uso e privacidade" page; both default to <portal>/termos-de-uso-e-privacidade. */
+    termsUrl: optionalUrl.default(""),
+    privacyUrl: optionalUrl.default("")
   })
   .superRefine((env, ctx) => {
     if (env.appEnv === "production" && env.useMocks) {
@@ -43,6 +47,18 @@ const envSchema = z
       const value = env[key];
       if (typeof value !== "string" || value === "") ctx.addIssue({ code: "custom", path: [key], message: `${name} is required when mocks are off` });
       else if (env.appEnv === "production" && !value.startsWith("https://")) {
+        ctx.addIssue({ code: "custom", path: [key], message: `${name} must use https in production` });
+      }
+    }
+    // Links opened outside the app (portal pages): optional, but never plain http in production.
+    const links: readonly [keyof typeof env, string][] = [
+      ["consumidorAppUrl", "EXPO_PUBLIC_CONSUMIDOR_APP_URL"],
+      ["termsUrl", "EXPO_PUBLIC_TERMS_URL"],
+      ["privacyUrl", "EXPO_PUBLIC_PRIVACY_URL"]
+    ];
+    for (const [key, name] of links) {
+      const value = env[key];
+      if (env.appEnv === "production" && typeof value === "string" && value !== "" && !value.startsWith("https://")) {
         ctx.addIssue({ code: "custom", path: [key], message: `${name} must use https in production` });
       }
     }
@@ -63,7 +79,9 @@ export function parseConfig(raw: Record<string, string | undefined>): ConfigResu
     rateioApiUrl: blankToUndefined(raw.EXPO_PUBLIC_RATEIO_API_URL),
     apiTimeoutMs: blankToUndefined(raw.EXPO_PUBLIC_API_TIMEOUT_MS),
     cepApiUrl: blankToUndefined(raw.EXPO_PUBLIC_CEP_API_URL),
-    portalUrl: blankToUndefined(raw.EXPO_PUBLIC_PORTAL_URL)
+    consumidorAppUrl: blankToUndefined(raw.EXPO_PUBLIC_CONSUMIDOR_APP_URL) ?? blankToUndefined(raw.EXPO_PUBLIC_PORTAL_URL),
+    termsUrl: blankToUndefined(raw.EXPO_PUBLIC_TERMS_URL),
+    privacyUrl: blankToUndefined(raw.EXPO_PUBLIC_PRIVACY_URL)
   });
   if (parsed.success) return { ok: true, config: parsed.data };
   return { ok: false, issues: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`) };
@@ -77,7 +95,10 @@ export const configResult: ConfigResult = parseConfig({
   EXPO_PUBLIC_RATEIO_API_URL: process.env.EXPO_PUBLIC_RATEIO_API_URL,
   EXPO_PUBLIC_API_TIMEOUT_MS: process.env.EXPO_PUBLIC_API_TIMEOUT_MS,
   EXPO_PUBLIC_CEP_API_URL: process.env.EXPO_PUBLIC_CEP_API_URL,
-  EXPO_PUBLIC_PORTAL_URL: process.env.EXPO_PUBLIC_PORTAL_URL
+  EXPO_PUBLIC_CONSUMIDOR_APP_URL: process.env.EXPO_PUBLIC_CONSUMIDOR_APP_URL,
+  EXPO_PUBLIC_PORTAL_URL: process.env.EXPO_PUBLIC_PORTAL_URL,
+  EXPO_PUBLIC_TERMS_URL: process.env.EXPO_PUBLIC_TERMS_URL,
+  EXPO_PUBLIC_PRIVACY_URL: process.env.EXPO_PUBLIC_PRIVACY_URL
 });
 
 /**
@@ -92,7 +113,9 @@ const FAIL_CLOSED: AppConfig = {
   rateioApiUrl: "",
   apiTimeoutMs: 20_000,
   cepApiUrl: "",
-  portalUrl: ""
+  consumidorAppUrl: "",
+  termsUrl: "",
+  privacyUrl: ""
 };
 
 export const config: AppConfig = configResult.ok ? configResult.config : FAIL_CLOSED;

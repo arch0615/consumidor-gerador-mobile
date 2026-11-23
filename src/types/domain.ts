@@ -84,6 +84,11 @@ export type AppAction =
   | { type: "ECONOMY" }
   | { type: "DOCUMENTS" }
   | { type: "BENEFITS" }
+  | { type: "POINTS_STATEMENT" }
+  | { type: "REWARD"; resourceId: string }
+  | { type: "REDEMPTIONS" }
+  | { type: "REFERRAL" }
+  | { type: "GENERATOR" }
   | { type: "HOME" };
 
 export interface DashboardAlert {
@@ -170,6 +175,8 @@ export interface PixCharge {
   /** Null when the gateway does not report an expiry. */
   expiresAt: ISODateTime | null;
   status: ChargeStatus;
+  /** Status of the invoice itself; may disagree with the charge (backend: invoice PAGA, charge PENDENTE). */
+  invoiceStatus: InvoiceStatus;
 }
 
 export interface BoletoCharge {
@@ -180,6 +187,8 @@ export interface BoletoCharge {
   digitableLine: string; // 47 digits
   barcode: string; // 44 digits (ITF)
   status: ChargeStatus;
+  /** Status of the invoice itself; may disagree with the charge (backend: invoice PAGA, charge PENDENTE). */
+  invoiceStatus: InvoiceStatus;
   /** Public https URL of the boleto PDF, when the gateway provides one. */
   pdfUrl: string | null;
 }
@@ -430,6 +439,76 @@ export interface BenefitsOverview {
     monthlyLimit: number;
     usedThisMonth: number;
   };
+}
+
+export interface RewardDetail extends Reward {
+  longDescription: string;
+}
+
+/** Same vocabulary as the consumer portal ("Meus resgates"). */
+export type RedemptionStatus = "PENDENTE" | "PROCESSANDO" | "ENVIADO" | "ENTREGUE" | "REPROVADO" | "CANCELADO";
+
+export interface Redemption {
+  id: string;
+  rewardId: string;
+  rewardName: string;
+  points: number;
+  status: RedemptionStatus;
+  createdAt: ISODateTime;
+  /** Optimistic-lock version required by the cancel endpoint. */
+  version: number | null;
+}
+
+export interface PointsStatementPage {
+  entries: readonly PointsEntry[];
+  page: number;
+  totalPages: number;
+  balance: number;
+}
+
+export type ReferralStatus = "CADASTRADO" | "EM_ANALISE" | "ATIVO" | "CANCELADO";
+
+export interface ReferredPerson {
+  id: string;
+  /** Masked by the API. */
+  name: string;
+  createdAt: ISODateTime;
+  status: ReferralStatus;
+  rewardPoints: number;
+}
+
+export interface ReferralProgram {
+  /** API `programaAtivo`; the portal does not gate the UI on it, so neither does the app (kept for later use). */
+  active: boolean;
+  code: string;
+  link: string;
+  inviteMessage: string;
+  rewardPoints: number;
+  monthlyLimit: number;
+  usedThisMonth: number;
+  invited: number;
+  activeReferrals: number;
+  pointsEarned: number;
+  referred: readonly ReferredPerson[];
+}
+
+// ───────────── Generator access ("Quero ser gerador") ─────────────
+
+export type GeneratorRequestStatus = "ABERTA" | "EM_CONTATO" | "APROVADA" | "ENCERRADA";
+
+export interface GeneratorRequest {
+  id: string;
+  status: GeneratorRequestStatus;
+  createdAt: ISODateTime;
+  message: string | null;
+}
+
+export interface GeneratorAccess {
+  /** The account already has the generator profile (plants are managed in the generator area of the portal). */
+  isGenerator: boolean;
+  requests: readonly GeneratorRequest[];
+  /** The request still being handled by ACVEL (blocks a duplicate). */
+  openRequest: GeneratorRequest | null;
 }
 
 // ───────────── Preferences ─────────────

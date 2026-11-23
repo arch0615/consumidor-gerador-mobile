@@ -26,13 +26,27 @@ import { useTheme } from "@/theme";
 import type { EconomyMonth } from "@/types/domain";
 import { formatCompetencia, formatCompetenciaLong, formatCompetenciaShort, formatCurrency, formatKwh, formatPercent } from "@/utils/format";
 
-type ChartView = "savings" | "energy";
+type ChartView = "savings" | "energy" | "cost";
 type Period = "6" | "12";
 
+// "Custo" = distribuidora + ACVEL per month (the portal BI's "Custo total mensal").
 const VIEW_SEGMENTS: readonly Segment<ChartView>[] = [
   { value: "savings", label: "Economia" },
-  { value: "energy", label: "Consumo" }
+  { value: "energy", label: "Consumo" },
+  { value: "cost", label: "Custo" }
 ];
+
+const CHART_TITLE: Record<ChartView, string> = {
+  savings: "Economia por mês",
+  energy: "Consumo x energia compensada",
+  cost: "Custo total mensal (distribuidora + ACVEL)"
+};
+
+/** Month-over-month change (null without a usable previous month). */
+function changePercent(current: number | undefined, previous: number | undefined): number | null {
+  if (current === undefined || previous === undefined || previous <= 0) return null;
+  return Math.round(((current - previous) / previous) * 1000) / 10;
+}
 const PERIOD_SEGMENTS: readonly Segment<Period>[] = [
   { value: "6", label: "6 meses" },
   { value: "12", label: "12 meses" }
@@ -63,10 +77,14 @@ export default function EconomyScreen() {
       >
         {(overview) => {
           const months = overview.months.slice(-Number(period));
+          const lastTwo = overview.months.slice(-2);
+          const savingsChange = changePercent(lastTwo[1]?.savings, lastTwo[0]?.savings);
           const points =
             view === "savings"
               ? months.map((month) => ({ label: formatCompetenciaShort(month.competencia), longLabel: formatCompetenciaLong(month.competencia), value: month.savings }))
-              : months.map((month) => ({
+              : view === "cost"
+                ? months.map((month) => ({ label: formatCompetenciaShort(month.competencia), longLabel: formatCompetenciaLong(month.competencia), value: Math.round((month.utilityCost + month.acvelCost) * 100) / 100 }))
+                : months.map((month) => ({
                   label: formatCompetenciaShort(month.competencia),
                   longLabel: formatCompetenciaLong(month.competencia),
                   value: month.consumptionKwh,
@@ -89,12 +107,12 @@ export default function EconomyScreen() {
               </ACVELCard>
 
               <Columns>
-                <MetricCard label="Neste mês" value={formatCurrency(overview.currentMonthSavings)} icon={CalendarDays} compact />
+                <MetricCard label="Neste mês" value={formatCurrency(overview.currentMonthSavings)} icon={CalendarDays} trendPercent={savingsChange} caption="vs. mês anterior" compact />
                 <MetricCard label="kWh compensados" value={formatKwh(overview.compensatedKwhTotal)} icon={Leaf} compact />
               </Columns>
 
               <ChartCard
-                title={view === "savings" ? "Economia por mês" : "Consumo x energia compensada"}
+                title={CHART_TITLE[view]}
                 subtitle="Toque e arraste no gráfico para ver cada mês"
                 controls={
                   <View style={{ gap: theme.spacing.xs }}>
@@ -105,6 +123,8 @@ export default function EconomyScreen() {
               >
                 {view === "savings" ? (
                   <AreaChart key={`savings-${period}`} points={points} formatValue={formatCurrency} accessibilityLabel={`Economia mensal nos últimos ${period} meses`} />
+                ) : view === "cost" ? (
+                  <AreaChart key={`cost-${period}`} points={points} formatValue={formatCurrency} accessibilityLabel={`Custo total mensal nos últimos ${period} meses`} />
                 ) : (
                   <BarChart
                     key={`energy-${period}`}

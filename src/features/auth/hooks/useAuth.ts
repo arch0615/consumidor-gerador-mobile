@@ -7,6 +7,11 @@ import type { RegisterInput } from "@/types/domain";
 import { secureStorage, STORAGE_KEYS } from "@/utils/secure-storage";
 import { useRegistrationStore } from "../registration.store";
 
+/** Demo login (mock mode only; null against the real API). */
+export function useDemoCredentials() {
+  return authService.demoCredentials;
+}
+
 export function useSignIn() {
   const setSignedIn = useAuthStore((state) => state.setSignedIn);
   return useMutation({

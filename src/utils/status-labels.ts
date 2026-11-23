@@ -8,8 +8,11 @@ import type {
   ChargeStatus,
   DocumentKind,
   DocumentValidation,
+  GeneratorRequestStatus,
   InvoiceStatus,
   NotificationCategory,
+  RedemptionStatus,
+  ReferralStatus,
   ResidenceStatus,
   ResidenceType,
   TicketCategory,
@@ -156,4 +159,28 @@ export const DOCUMENT_STATUS: Record<DocumentValidation, StatusPresentation> = {
   EM_ANALISE: { label: "Em análise", tone: "info" },
   APROVADO: { label: "Aprovado", tone: "success" },
   REPROVADO: { label: "Reprovado", tone: "danger" }
+};
+
+export const GENERATOR_REQUEST_STATUS: Record<GeneratorRequestStatus, StatusPresentation> = {
+  ABERTA: { label: "Em análise", tone: "info" },
+  EM_CONTATO: { label: "Em contato", tone: "info" },
+  APROVADA: { label: "Gerador habilitado", tone: "success" },
+  ENCERRADA: { label: "Encerrada", tone: "neutral" }
+};
+
+/** Same meaning as the portal's "Meus resgates" statuses. */
+export const REDEMPTION_STATUS: Record<RedemptionStatus, StatusPresentation> = {
+  PENDENTE: { label: "Aguardando aprovação", tone: "warning" },
+  PROCESSANDO: { label: "Em separação", tone: "info" },
+  ENVIADO: { label: "Enviado", tone: "info" },
+  ENTREGUE: { label: "Entregue", tone: "success" },
+  REPROVADO: { label: "Reprovado", tone: "danger" },
+  CANCELADO: { label: "Cancelado", tone: "neutral" }
+};
+
+export const REFERRAL_STATUS: Record<ReferralStatus, StatusPresentation> = {
+  CADASTRADO: { label: "Cadastrado", tone: "neutral" },
+  EM_ANALISE: { label: "Em análise", tone: "info" },
+  ATIVO: { label: "Ativo", tone: "success" },
+  CANCELADO: { label: "Cancelado", tone: "neutral" }
 };

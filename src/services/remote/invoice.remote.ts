@@ -7,7 +7,7 @@ import { api } from "../api/apiClient";
 import { downloadAuthenticatedFile } from "../api/file-transfer";
 import { zId, zList, zNumber, zNumberOrNull, zStringOrNull } from "../api/schema";
 import type { InvoiceService } from "../invoice.service";
-import { fetchSnapshot, normaliseCompetencia, normaliseInvoiceStatus, snapshotInvoiceStatus, type Snapshot, type SnapshotInvoice } from "./business";
+import { fetchSnapshot, hasAcvelInvoicePdf, normaliseCompetencia, normaliseInvoiceStatus, snapshotInvoiceStatus, type Snapshot, type SnapshotInvoice } from "./business";
 
 // ── Rateio invoice payloads (GET /v1/faturas/me, /v1/faturas/{id}) ────
 
@@ -93,12 +93,23 @@ function pixPayloadOf(charge: Cobranca): string {
   return charge.pix_qr_code ?? charge.pix_copia_cola ?? charge.pix_copia_e_cola ?? charge.pix_emv ?? "";
 }
 
+/** Charges of an invoice. Rateio answers 404 when the invoice has no charge: that is "no charge", not a failure. */
+async function listCharges(invoiceId: string): Promise<Cobranca[]> {
+  try {
+    return await api.get("rateio", "/v1/pagamentos/cobrancas", zList(cobrancaSchema), { query: { fatura_id: invoiceId, perPage: 50 } });
+  } catch (error) {
+    if (isAppError(error, "RESOURCE_NOT_FOUND")) return [];
+    throw error;
+  }
+}
+
 /**
  * An invoice may have several charges (per method, or re-issued after expiry).
  * Prefer a confirmed one, then the newest charge carrying the payload the screen needs.
+ * Null when the invoice has no charge.
  */
 async function fetchCharge(invoiceId: string, kind: "pix" | "boleto"): Promise<Cobranca | null> {
-  const charges = await api.get("rateio", "/v1/pagamentos/cobrancas", zList(cobrancaSchema), { query: { fatura_id: invoiceId, perPage: 50 } });
+  const charges = await listCharges(invoiceId);
   const confirmed = charges.find((charge) => chargeStatusOf(charge.status) === "CONFIRMADO");
   if (confirmed) return confirmed;
   const newestFirst = [...charges].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
@@ -168,6 +179,11 @@ function firstCompetencia(periodMonths: number): string {
   return `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** The period filter applies to history; an open or overdue invoice is always listed, whatever its competência. */
+function inPeriod(invoice: InvoiceSummary, oldest: string): boolean {
+  return !invoice.competencia || invoice.competencia >= oldest || invoice.status === "PENDENTE" || invoice.status === "ATRASADO";
+}
+
 function sortNewestFirst(list: InvoiceSummary[]): InvoiceSummary[] {
   return list.sort((a, b) => b.competencia.localeCompare(a.competencia) || b.dueDate.localeCompare(a.dueDate));
 }
@@ -175,11 +191,12 @@ function sortNewestFirst(list: InvoiceSummary[]): InvoiceSummary[] {
 function toDetail(fatura: FaturaDetail, snapshotInvoice: SnapshotInvoice | undefined): InvoiceDetail {
   const summary = toSummary(fatura);
   const utilityAmount = fatura.valor_distribuidora ?? snapshotInvoice?.valor_distribuidora ?? 0;
+  const origin = (fatura.origem_portal ?? snapshotInvoice?.origem ?? "ACVEL").toUpperCase() === "DIGITAL_GRID" ? "DIGITAL_GRID" : "ACVEL";
   return {
     ...summary,
     holderName: fatura.uc?.titular ?? "",
     billingMode: billingModeOf(fatura.modo_cobranca),
-    origin: (fatura.origem_portal ?? "ACVEL").toUpperCase() === "DIGITAL_GRID" ? "DIGITAL_GRID" : "ACVEL",
+    origin,
     items: (fatura.itens_cobranca ?? []).map((item) => ({
       kind: (item.tipo ?? "").toUpperCase() === "CONCESSIONARIA" ? "CONCESSIONARIA" : "ACVEL",
       description: item.descricao ?? "Item da fatura",
@@ -192,7 +209,8 @@ function toDetail(fatura: FaturaDetail, snapshotInvoice: SnapshotInvoice | undef
     paidAt: fatura.paga_em ?? snapshotInvoice?.paga_em ?? null,
     paymentMethod: paymentMethodOf(fatura.metodo_pagamento ?? snapshotInvoice?.metodo_pagamento ?? null),
     // PREVIEW = boleto not yet confirmed at the bank; the API blocks the download.
-    pdfAvailable: (fatura.pdf_status ?? "DISPONIVEL").toUpperCase() !== "PREVIEW",
+    // Digital Grid bills are not downloadable by consumers (403 on faturas-distribuidora).
+    pdfAvailable: origin === "ACVEL" && (fatura.pdf_status ?? "DISPONIVEL").toUpperCase() !== "PREVIEW",
     utilityBill:
       fatura.fatura_distribuidora_referencia && fatura.fatura_distribuidora_referencia.valorTotal !== null
         ? { amount: fatura.fatura_distribuidora_referencia.valorTotal, dueDate: (fatura.fatura_distribuidora_referencia.vencimento ?? "").slice(0, 10) }
@@ -214,7 +232,8 @@ function snapshotToDetail(invoice: SnapshotInvoice, snapshot: Snapshot): Invoice
     consumptionKwh: invoice.consumo_kwh,
     paidAt: invoice.paga_em,
     paymentMethod: paymentMethodOf(invoice.metodo_pagamento),
-    pdfAvailable: false,
+    // The snapshot links ACVEL invoices to /v1/faturas/{id}/pdf (the path downloadPdf uses).
+    pdfAvailable: hasAcvelInvoicePdf(invoice),
     utilityBill: null
   };
 }
@@ -222,7 +241,7 @@ function snapshotToDetail(invoice: SnapshotInvoice, snapshot: Snapshot): Invoice
 // ── Service ────────────────────────────────────────────────────────────
 
 export const remoteInvoiceService: InvoiceService = {
-  async list(filters) {
+  async getInvoices(filters) {
     let invoices: InvoiceSummary[] = [];
     try {
       // Swagger: page, perPage/per_page, status — no competência filter, so the period is applied here.
@@ -230,7 +249,7 @@ export const remoteInvoiceService: InvoiceService = {
         query: { page: 1, perPage: 100, per_page: 100, status: filters.status === "PAID" ? "PAGA" : undefined }
       });
       const oldest = firstCompetencia(filters.periodMonths);
-      invoices = faturas.filter(isConsumerInvoice).map(toSummary).filter((invoice) => !invoice.competencia || invoice.competencia >= oldest);
+      invoices = faturas.filter(isConsumerInvoice).map(toSummary).filter((invoice) => inPeriod(invoice, oldest));
     } catch (error) {
       if (!isAppError(error, "RESOURCE_NOT_FOUND")) throw error;
     }
@@ -238,12 +257,12 @@ export const remoteInvoiceService: InvoiceService = {
       // Legacy customers may only have invoices in the operational snapshot.
       const snapshot = await fetchSnapshot();
       const oldest = firstCompetencia(filters.periodMonths);
-      invoices = snapshot.invoices.map((invoice) => snapshotToSummary(invoice, snapshot)).filter((invoice) => invoice.competencia >= oldest);
+      invoices = snapshot.invoices.map((invoice) => snapshotToSummary(invoice, snapshot)).filter((invoice) => inPeriod(invoice, oldest));
     }
     return sortNewestFirst(invoices.filter((invoice) => matchesFilter(invoice.status, filters.status)));
   },
 
-  async get(invoiceId) {
+  async getInvoice(invoiceId) {
     const [faturaResult, snapshotResult] = await Promise.allSettled([
       api.get("rateio", `/v1/faturas/${encodeURIComponent(invoiceId)}`, faturaDetailSchema),
       fetchSnapshot()
@@ -255,11 +274,12 @@ export const remoteInvoiceService: InvoiceService = {
     throw faturaResult.reason;
   },
 
-  downloadPdf: (invoiceId) => downloadAuthenticatedFile("rateio", `/v1/faturas/${encodeURIComponent(invoiceId)}/pdf`, `fatura-acvel-${invoiceId}.pdf`),
+  downloadInvoicePdf: (invoiceId) => downloadAuthenticatedFile("rateio", `/v1/faturas/${encodeURIComponent(invoiceId)}/pdf`, `fatura-acvel-${invoiceId}.pdf`),
 
-  async getPixCharge(invoiceId) {
-    const [charge, invoice] = await Promise.all([fetchCharge(invoiceId, "pix"), remoteInvoiceService.get(invoiceId)]);
-    if (!charge) return { invoiceId, amount: invoice.amount, emvCode: "", expiresAt: null, status: invoice.status === "PAGO" ? "CONFIRMADO" : "PROCESSANDO" };
+  async getExistingPix(invoiceId) {
+    const [charge, invoice] = await Promise.all([fetchCharge(invoiceId, "pix"), remoteInvoiceService.getInvoice(invoiceId)]);
+    // No charge: the charge status is never derived from the invoice status (the screen gates paid invoices).
+    if (!charge) return { invoiceId, amount: invoice.amount, emvCode: "", expiresAt: null, status: "PROCESSANDO", invoiceStatus: invoice.status };
     const emvCode = pixPayloadOf(charge);
     const status = chargeStatusOf(charge.status);
     return {
@@ -268,21 +288,22 @@ export const remoteInvoiceService: InvoiceService = {
       emvCode,
       expiresAt: charge.pix_expira_em,
       // A pending charge without a Pix payload is still being registered at the bank.
-      status: status === "AGUARDANDO" && !emvCode ? "PROCESSANDO" : status
+      status: status === "AGUARDANDO" && !emvCode ? "PROCESSANDO" : status,
+      invoiceStatus: invoice.status
     };
   },
 
-  async getChargeStatus(invoiceId) {
+  async getPaymentStatus(invoiceId) {
     const charge = await fetchCharge(invoiceId, "pix");
     if (!charge) return "PROCESSANDO";
     const status = chargeStatusOf(charge.status);
     return status === "AGUARDANDO" && !pixPayloadOf(charge) ? "PROCESSANDO" : status;
   },
 
-  async getBoleto(invoiceId) {
-    const [charge, invoice] = await Promise.all([fetchCharge(invoiceId, "boleto"), remoteInvoiceService.get(invoiceId)]);
+  async getExistingBoleto(invoiceId) {
+    const [charge, invoice] = await Promise.all([fetchCharge(invoiceId, "boleto"), remoteInvoiceService.getInvoice(invoiceId)]);
     const digitableLine = onlyDigits(charge?.boleto_linha_digitavel ?? "");
-    const rawStatus = charge ? chargeStatusOf(charge.status) : invoice.status === "PAGO" ? "CONFIRMADO" : "PROCESSANDO";
+    const rawStatus = charge ? chargeStatusOf(charge.status) : "PROCESSANDO";
     const pdf = charge?.boleto_url_pdf ?? charge?.boleto_pdf_url ?? null;
     const boleto: BoletoCharge = {
       invoiceId,
@@ -291,12 +312,13 @@ export const remoteInvoiceService: InvoiceService = {
       digitableLine,
       barcode: onlyDigits(charge?.boleto_codigo ?? charge?.boleto_codigo_barras ?? "") || barcodeFromDigitableLine(digitableLine) || "",
       status: rawStatus === "AGUARDANDO" && !digitableLine ? "PROCESSANDO" : rawStatus,
+      invoiceStatus: invoice.status,
       pdfUrl: pdf && /^https:\/\//.test(pdf) ? pdf : null
     };
     return boleto;
   },
 
-  async listPayments() {
+  async getPaymentHistory() {
     const [chargesResult, snapshot] = await Promise.all([
       api.get("rateio", "/v1/pagamentos/cobrancas", zList(cobrancaSchema), { query: { status: "CONFIRMADO", perPage: 100 } }).then(
         (charges) => ({ ok: true as const, charges }),

@@ -23,6 +23,8 @@ export const consumerSchema = z.object({
   dg_status: zStringOrNull,
   status: zStringOrNull,
   compensando: z.boolean().nullish(),
+  aprovado_em: zStringOrNull,
+  is_generator: z.boolean().nullish(),
   preferencia_cobranca: z.enum(["UNIFICADA", "SEPARADA"]).nullish(),
   created_at: zStringOrNull
 });
@@ -37,6 +39,16 @@ export async function fetchConsumer(): Promise<Consumer | null> {
     if (isAppError(error, "RESOURCE_NOT_FOUND")) return null;
     throw error;
   }
+}
+
+/**
+ * Effective onboarding state. The legacy auth-api may keep `onboarding_completed=false` for consumers
+ * that were already approved; like the web portal (splash + hydrateConsumerIdentity), an approved
+ * consumer — or one already receiving credits — has finished onboarding.
+ */
+export function isConsumerOnboarded(consumer: Consumer | null): boolean {
+  if (!consumer) return false;
+  return (consumer.status ?? "").toUpperCase() === "APROVADO" || Boolean(consumer.aprovado_em) || consumer.compensando === true;
 }
 
 export async function requireConsumer(): Promise<Consumer> {
@@ -75,7 +87,8 @@ const snapshotInvoiceSchema = z.object({
   consumo_kwh: zNumber.default(0),
   energia_compensada_kwh: zNumberOrNull,
   metodo_pagamento: zStringOrNull,
-  origem: zStringOrNull
+  origem: zStringOrNull,
+  pdf_url: zStringOrNull
 });
 
 const snapshotMonthSchema = z.object({
@@ -90,6 +103,22 @@ const snapshotMonthSchema = z.object({
   total_com_acvel: zNumberOrNull,
   fonte: zStringOrNull
 });
+
+/**
+ * "Sem ACVEL" baseline of a month. The billing engine value is preferred (web portal rule), but a
+ * missing or non-positive value is not a usable baseline (the engine answers 0 when it has no
+ * result), so the legacy approximation distribuidora + ACVEL + economia is used instead.
+ */
+export function baselineWithoutAcvel(month: Pick<SnapshotMonth, "total_sem_acvel" | "valor_distribuidora" | "valor_total" | "economia_reais">): number {
+  if (month.total_sem_acvel !== null && month.total_sem_acvel > 0) return month.total_sem_acvel;
+  return month.valor_distribuidora + month.valor_total + month.economia_reais;
+}
+
+/** ACVEL invoice PDFs are served by Rateio at /v1/faturas/{id}/pdf (Digital Grid bills are not readable by consumers). */
+export function hasAcvelInvoicePdf(invoice: Pick<SnapshotInvoice, "id" | "origem" | "pdf_url">): boolean {
+  const origin = (invoice.origem ?? "ACVEL").toUpperCase();
+  return origin === "ACVEL" && invoice.pdf_url === `/v1/faturas/${invoice.id}/pdf`;
+}
 
 export const snapshotSchema = z.object({
   consumidor_id: zStringOrNull,

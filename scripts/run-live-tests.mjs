@@ -2,7 +2,7 @@
 /**
  * Runs src/services/__tests__/live-api.test.ts against the real APIs.
  * Loads .env (API URLs) and .env.test.local (ACVEL_TEST_EMAIL / ACVEL_TEST_PASSWORD)
- * without printing any value. `--writes` also runs the upload checks.
+ * without printing any value. The suite is READ-ONLY: it never creates, updates or deletes data.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -20,7 +20,11 @@ function load(file) {
 }
 
 const env = { ...process.env, ...load(".env"), ...load(".env.test.local"), ACVEL_LIVE: "1" };
-if (process.argv.includes("--writes")) env.ACVEL_LIVE_WRITES = "1";
+const writeFlags = process.argv.slice(2).filter((arg) => arg.startsWith("--write"));
+if (writeFlags.length > 0) {
+  console.error(`The live suite is read-only; write options are not supported (${writeFlags.join(", ")}).`);
+  process.exit(1);
+}
 
 const missing = ["ACVEL_TEST_EMAIL", "ACVEL_TEST_PASSWORD"].filter((key) => !env[key]);
 if (missing.length > 0) {

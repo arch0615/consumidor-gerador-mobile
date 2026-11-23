@@ -2,19 +2,23 @@ import Constants from "expo-constants";
 import { config } from "@/config/env";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { Building, FileText, FlaskConical, Headset, LogOut, Scale, Settings, ShieldCheck, Trash, User } from "lucide-react-native";
+import { Building, FileText, FlaskConical, Headset, LogOut, Scale, Settings, ShieldCheck, Trash, User, Zap } from "lucide-react-native";
 import { useState } from "react";
 import { View } from "react-native";
 import { ACVELCard, ACVELModal, ACVELSelect, AppText, Avatar, ListItem, PageHeader, QueryView, Screen, SectionHeader } from "@/components";
 import { useSignOut } from "@/features/auth/hooks/useAuth";
 import { useProfile } from "@/features/profile/hooks/useAccount";
 import { useRefreshControl } from "@/hooks/useRefreshControl";
+import { portalLinks } from "@/navigation/portal-links";
 import { routes } from "@/navigation/routes";
 import { DEV_SCENARIOS, useDevScenarioStore, type DevScenario } from "@/stores/dev-scenario.store";
 import { useTheme } from "@/theme";
 import { formatDate } from "@/utils/format";
 
-const LEGAL_URLS = { terms: "https://acvel.com.br/termos", privacy: "https://acvel.com.br/privacidade" } as const;
+/** Portal legal page(s) from the environment; one combined entry when terms and privacy are the same page. */
+const LEGAL = portalLinks();
+const TERMS_URL = LEGAL.terms();
+const PRIVACY_URL = LEGAL.legalIsCombined() ? null : LEGAL.privacy();
 const SCENARIO_LABEL: Record<DevScenario, string> = {
   normal: "Normal",
   empty: "Sem dados (vazio)",
@@ -64,6 +68,7 @@ export default function AccountScreen() {
           <ListItem icon={User} title="Dados pessoais" onPress={() => router.push(routes.profile)} divider />
           <ListItem icon={Building} title="Minhas unidades" onPress={() => router.push(routes.residences)} divider />
           <ListItem icon={FileText} title="Documentos" onPress={() => router.push(routes.documents)} divider />
+          <ListItem icon={Zap} title="Quero ser gerador" subtitle="Solicite seu perfil de gerador de energia" onPress={() => router.push(routes.generator)} divider />
           <ListItem icon={ShieldCheck} title="Segurança" subtitle="Senha e acesso" onPress={() => router.push(routes.security)} />
         </ACVELCard>
       </View>
@@ -72,9 +77,16 @@ export default function AccountScreen() {
         <SectionHeader title="Preferências e ajuda" />
         <ACVELCard padding="xs">
           <ListItem icon={Settings} title="Configurações" subtitle="Aparência e notificações" onPress={() => router.push(routes.settings)} divider />
-          <ListItem icon={Headset} title="Ajuda e suporte" onPress={() => router.push(routes.support)} divider />
-          <ListItem icon={Scale} title="Termos de uso" onPress={() => void WebBrowser.openBrowserAsync(LEGAL_URLS.terms)} divider />
-          <ListItem icon={ShieldCheck} title="Política de privacidade" onPress={() => void WebBrowser.openBrowserAsync(LEGAL_URLS.privacy)} />
+          <ListItem icon={Headset} title="Ajuda e suporte" onPress={() => router.push(routes.support)} divider={TERMS_URL !== null || PRIVACY_URL !== null} />
+          {TERMS_URL ? (
+            <ListItem
+              icon={Scale}
+              title={PRIVACY_URL ? "Termos de uso" : "Termos de uso e privacidade"}
+              onPress={() => void WebBrowser.openBrowserAsync(TERMS_URL)}
+              divider={PRIVACY_URL !== null}
+            />
+          ) : null}
+          {PRIVACY_URL ? <ListItem icon={ShieldCheck} title="Política de privacidade" onPress={() => void WebBrowser.openBrowserAsync(PRIVACY_URL)} /> : null}
         </ACVELCard>
       </View>
 

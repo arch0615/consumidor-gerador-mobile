@@ -1,20 +1,18 @@
-import { Gift, Share2, Sparkles } from "lucide-react-native";
-import { useState } from "react";
+import { useRouter } from "expo-router";
+import { BookOpen, Gift, ListChecks, ReceiptText, Share2, Sparkles } from "lucide-react-native";
 import { Share, View } from "react-native";
-import { ACVELButton, ACVELCard, ACVELModal, AppText, Columns, CopyField, InfoCard, ListItem, MetricCard, PageHeader, QueryView, Screen, SectionHeader, StatusChip } from "@/components";
-import { useBenefits, useRedeemReward } from "@/features/benefits/hooks/useBenefits";
+import { ACVELButton, ACVELCard, AppText, Columns, CopyField, ListItem, MetricCard, PageHeader, QueryView, Screen, SectionHeader, StatusChip } from "@/components";
+import { useBenefits } from "@/features/benefits/hooks/useBenefits";
 import { useRefreshControl } from "@/hooks/useRefreshControl";
+import { routes } from "@/navigation/routes";
 import { useTheme } from "@/theme";
-import type { Reward } from "@/types/domain";
-import { errorMessage } from "@/utils/app-error";
 import { formatDate, formatPoints, formatSignedPoints } from "@/utils/format";
 
 export default function BenefitsScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const benefits = useBenefits();
-  const redeem = useRedeemReward();
   const refresh = useRefreshControl(benefits);
-  const [pendingReward, setPendingReward] = useState<Reward | null>(null);
 
   return (
     <Screen edges={["top"]} {...refresh}>
@@ -44,8 +42,10 @@ export default function BenefitsScreen() {
                 </View>
               </ACVELCard>
 
-              {redeem.isSuccess ? <InfoCard tone="success" title="Resgate solicitado!" message="Seus pontos ficam reservados até a aprovação do pedido. Avisaremos você por aqui." /> : null}
-              {redeem.isError ? <InfoCard tone="danger" title="Não foi possível trocar" message={errorMessage(redeem.error)} /> : null}
+              <ACVELCard padding="xs">
+                <ListItem icon={ReceiptText} title="Extrato de pontos" subtitle="Todas as movimentações" onPress={() => router.push(routes.pointsStatement)} divider />
+                <ListItem icon={ListChecks} title="Meus resgates" subtitle="Andamento e cancelamento" onPress={() => router.push(routes.redemptions)} />
+              </ACVELCard>
 
               <View style={{ gap: theme.spacing.sm }}>
                 <SectionHeader title="Indique e ganhe" subtitle="Ganhe pontos quando um amigo começar a economizar" />
@@ -67,6 +67,9 @@ export default function BenefitsScreen() {
                   <MetricCard label="Amigos indicados" value={String(referral.invited)} caption={`${referral.active} já economizando`} compact />
                   <MetricCard label="Pontos ganhos" value={formatPoints(referral.pointsEarned)} caption="com indicações" compact />
                 </Columns>
+                <ACVELCard padding="xs">
+                  <ListItem icon={BookOpen} title="Regras e meus indicados" onPress={() => router.push(routes.referral)} />
+                </ACVELCard>
               </View>
 
               <View style={{ gap: theme.spacing.sm }}>
@@ -82,9 +85,9 @@ export default function BenefitsScreen() {
                         title={reward.name}
                         subtitle={reward.description}
                         caption={`${formatPoints(reward.pointsPrice)} · ${reward.category}`}
-                        accessibilityHint={affordable ? "Toque para trocar" : undefined}
+                        accessibilityHint="Abre os detalhes da recompensa"
                         trailing={!reward.available ? <StatusChip label="Esgotado" tone="neutral" size="sm" /> : !affordable ? <StatusChip label="Pontos insuficientes" tone="neutral" size="sm" /> : undefined}
-                        {...(affordable ? { onPress: () => setPendingReward(reward) } : {})}
+                        onPress={() => router.push(routes.reward(reward.id))}
                         divider={index < overview.rewards.length - 1}
                       />
                     );
@@ -108,16 +111,6 @@ export default function BenefitsScreen() {
                 </ACVELCard>
               </View>
 
-              <ACVELModal
-                visible={pendingReward !== null}
-                icon={Gift}
-                title={pendingReward ? `Trocar por ${pendingReward.name}?` : ""}
-                message={pendingReward ? `Serão descontados ${formatPoints(pendingReward.pointsPrice)} do seu saldo.` : undefined}
-                confirmLabel="Confirmar troca"
-                confirmLoading={redeem.isPending}
-                onCancel={() => setPendingReward(null)}
-                onConfirm={() => pendingReward && redeem.mutate(pendingReward.id, { onSettled: () => setPendingReward(null) })}
-              />
             </View>
           );
         }}

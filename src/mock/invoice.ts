@@ -81,7 +81,8 @@ export function buildPixCharge(invoice: InvoiceDetail): PixCharge {
     // Static EMV-like payload for UI purposes only (not a payable code).
     emvCode: `00020126580014br.gov.bcb.pix0136acvel-demo-${invoice.id}520400005303986540${amount.length}${amount}5802BR5925ACVEL ENERGIA DEMO6009SAO PAULO62070503***6304${digitsFrom(invoice.id, 4)}`,
     expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
-    status: "AGUARDANDO"
+    status: "AGUARDANDO",
+    invoiceStatus: invoice.status
   };
 }
 
@@ -95,6 +96,7 @@ export function buildBoletoCharge(invoice: InvoiceDetail): BoletoCharge {
     digitableLine: `${digitsFrom(`${invoice.id}-l`, 33)}${digitsFrom(`${invoice.id}-d`, 4)}${cents}`,
     barcode,
     status: "AGUARDANDO",
+    invoiceStatus: invoice.status,
     pdfUrl: null
   };
 }

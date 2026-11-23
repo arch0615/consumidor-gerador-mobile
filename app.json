@@ -9,7 +9,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.acvel.app",
-      "googleServicesFile": "./firebase/GoogleService-Info.plist"
+      "googleServicesFile": "./firebase/GoogleService-Info.plist",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.acvel.app",
@@ -21,7 +25,12 @@
       },
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "resize",
-      "googleServicesFile": "./firebase/google-services-android.json"
+      "googleServicesFile": "./firebase/google-services-android.json",
+      "versionCode": 1,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -50,7 +59,8 @@
         "expo-image-picker",
         {
           "photosPermission": "A ACVEL usa suas fotos para anexar a conta de luz e documentos ao seu cadastro.",
-          "cameraPermission": "A ACVEL usa a câmera para fotografar a conta de luz e documentos do seu cadastro."
+          "cameraPermission": "A ACVEL usa a câmera para fotografar a conta de luz e documentos do seu cadastro.",
+          "microphonePermission": false
         }
       ],
       "expo-sharing",

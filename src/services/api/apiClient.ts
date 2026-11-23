@@ -3,7 +3,7 @@ import { apiBaseUrl, config, type ApiTarget } from "@/config/env";
 import { AppError } from "@/utils/app-error";
 import { devLog } from "@/utils/logger";
 import { authBridge } from "./auth-bridge";
-import { apiErrorFromResponse } from "./http-errors";
+import { apiErrorFromResponse, isInfrastructureFailure } from "./http-errors";
 import type { JsonValue } from "./schema";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -96,12 +96,13 @@ export async function apiRequest<S extends z.ZodType>(request: ApiRequest<S>): P
   if (response.status === 401 && authenticated) {
     const refreshed = await authBridge().getIdToken(true).catch(() => null);
     if (refreshed) response = await send(request, url, refreshed);
-    if (response.status === 401) authBridge().onUnauthorized();
   }
 
   devLog.info("api", `${request.method} ${request.api} ${request.path} → ${response.status} (${Date.now() - started} ms)`);
 
   const body = await readBody(response);
+  // Still 401 after a fresh token → the session is no longer valid, unless the API is reporting a database outage.
+  if (response.status === 401 && authenticated && !isInfrastructureFailure(body)) authBridge().onUnauthorized();
   if (!response.ok) throw apiErrorFromResponse(response.status, body, response.headers.get("x-request-id"));
 
   const parsed = request.schema.safeParse(body);

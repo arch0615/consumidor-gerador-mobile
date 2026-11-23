@@ -60,7 +60,8 @@ const ticketSchema = z
     updated_at: zStringOrNull,
     updatedAt: zStringOrNull,
     last_message: zStringOrNull,
-    ultima_mensagem: zStringOrNull
+    ultima_mensagem: zStringOrNull,
+    lastMessagePreview: zStringOrNull
   })
   .transform((ticket): SupportTicket => {
     const createdAt = ticket.created_at ?? ticket.createdAt ?? new Date(0).toISOString();
@@ -72,7 +73,7 @@ const ticketSchema = z
       status: STATUS_MAP[ticket.status.toUpperCase()] ?? "ABERTO",
       createdAt,
       updatedAt: ticket.updated_at ?? ticket.updatedAt ?? createdAt,
-      lastMessagePreview: ticket.last_message ?? ticket.ultima_mensagem ?? null
+      lastMessagePreview: ticket.lastMessagePreview ?? ticket.last_message ?? ticket.ultima_mensagem ?? null
     };
   });
 
@@ -92,6 +93,7 @@ const messageSchema = z
     conteudo: zStringOrNull,
     message: zStringOrNull,
     sent_at: zStringOrNull,
+    sentAt: zStringOrNull,
     created_at: zStringOrNull,
     attachments: z.array(attachmentSchema).catch([]).default([])
   })
@@ -100,7 +102,7 @@ const messageSchema = z
       id: message.id,
       sender: message.sender === "AGENT" || message.sender === "BOT" || message.sender === "SUPORTE" ? "SUPORTE" : "CLIENTE",
       body: message.text ?? message.conteudo ?? message.message ?? "",
-      createdAt: message.sent_at ?? message.created_at ?? new Date(0).toISOString(),
+      createdAt: message.sentAt ?? message.sent_at ?? message.created_at ?? new Date(0).toISOString(),
       attachments: message.attachments.map(
         (attachment): UploadedDocument => ({ documentId: attachment.id, name: attachment.nome ?? attachment.name ?? "Anexo", mimeType: attachment.mime_type ?? "application/octet-stream", sizeBytes: attachment.tamanho ?? 0 })
       )

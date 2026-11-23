@@ -1,4 +1,6 @@
+import { z } from "zod";
 import { barcodeFromDigitableLine } from "@/utils/boleto";
+import { zList } from "../../api/schema";
 import { actionFromLink, categoryFromType } from "../../notification-actions";
 import { normaliseCompetencia, normaliseInvoiceStatus, snapshotSchema } from "../business";
 import { meSchema } from "../me";
@@ -59,6 +61,16 @@ describe("GET /v1/auth/me contract (consumidor-gerador-api `Me`)", () => {
   });
 });
 
+describe("list envelopes", () => {
+  it("accepts arrays, { data } and { items } (support tickets: items/total/page/pageSize)", () => {
+    const schema = zList(z.object({ id: z.string() }));
+    expect(schema.parse([{ id: "a" }])).toEqual([{ id: "a" }]);
+    expect(schema.parse({ data: [{ id: "b" }], meta: { total: 1 } })).toEqual([{ id: "b" }]);
+    expect(schema.parse({ items: [{ id: "c" }], total: 1, page: 1, pageSize: 20 })).toEqual([{ id: "c" }]);
+    expect(() => schema.parse({ results: [] })).toThrow();
+  });
+});
+
 describe("rateio snapshot contract", () => {
   it("accepts decimals as strings and fills missing collections", () => {
     const snapshot = snapshotSchema.parse({
@@ -112,7 +124,15 @@ describe("notification links", () => {
     expect(actionFromLink("https://cliente.appacvel.com.br/pagamentos/pix?fatura=f9")).toEqual({ type: "INVOICE_PAYMENT", resourceId: "f9" });
     expect(actionFromLink("/suporte/t1")).toEqual({ type: "SUPPORT_TICKET", resourceId: "t1" });
     expect(actionFromLink("/minhas-residencias")).toEqual({ type: "RESIDENCES" });
-    expect(actionFromLink("/pontos/extrato")).toEqual({ type: "BENEFITS" });
+    expect(actionFromLink("/pontos/extrato")).toEqual({ type: "POINTS_STATEMENT" });
+  });
+
+  it("maps the marketplace, statement and referral links to the parity screens", () => {
+    expect(actionFromLink("/marketplace/resgates")).toEqual({ type: "REDEMPTIONS" });
+    expect(actionFromLink("/marketplace/p1")).toEqual({ type: "REWARD", resourceId: "p1" });
+    expect(actionFromLink("/pontos/extrato")).toEqual({ type: "POINTS_STATEMENT" });
+    expect(actionFromLink("https://cliente.appacvel.com.br/indicacao/meus-indicados")).toEqual({ type: "REFERRAL" });
+    expect(actionFromLink("/marketplace")).toEqual({ type: "BENEFITS" });
   });
 
   it("ignores unknown or non-path links", () => {

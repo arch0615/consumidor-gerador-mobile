@@ -27,7 +27,12 @@ export const routes = {
   settings: "/account/settings" satisfies Href,
   documents: "/account/documents" satisfies Href,
   security: "/account/security" satisfies Href,
-  deleteAccount: "/account/delete" satisfies Href
+  deleteAccount: "/account/delete" satisfies Href,
+  generator: "/account/generator" satisfies Href,
+  reward: (id: string): Href => ({ pathname: "/benefits/reward/[id]", params: { id } }),
+  redemptions: "/benefits/redemptions" satisfies Href,
+  pointsStatement: "/benefits/statement" satisfies Href,
+  referral: "/benefits/referral" satisfies Href
 } as const;
 
 /** Maps backend-driven actions (alerts, notifications) to app routes. */
@@ -55,6 +60,16 @@ export function hrefForAction(action: AppAction): Href {
       return routes.documents;
     case "BENEFITS":
       return routes.benefits;
+    case "POINTS_STATEMENT":
+      return routes.pointsStatement;
+    case "REWARD":
+      return routes.reward(action.resourceId);
+    case "REDEMPTIONS":
+      return routes.redemptions;
+    case "REFERRAL":
+      return routes.referral;
+    case "GENERATOR":
+      return routes.generator;
     case "HOME":
       return routes.home;
   }

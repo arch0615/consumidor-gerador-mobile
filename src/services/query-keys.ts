@@ -32,5 +32,13 @@ export const queryKeys = {
     helpCenter: ["support", "help-center"] as const
   },
   documents: ["documents"] as const,
-  benefits: ["benefits"] as const
+  /** Prefix of every benefits query (invalidate after a redemption or cancellation). */
+  benefits: ["benefits"] as const,
+  benefitsDetail: {
+    reward: (id: string) => ["benefits", "reward", id] as const,
+    redemptions: ["benefits", "redemptions"] as const,
+    statement: ["benefits", "statement"] as const,
+    referral: ["benefits", "referral"] as const
+  },
+  generator: ["generator"] as const
 } as const;

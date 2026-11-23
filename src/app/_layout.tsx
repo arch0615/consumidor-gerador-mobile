@@ -104,6 +104,7 @@ function RootNavigator() {
         <Stack.Screen name="residence" options={{ headerShown: false }} />
         <Stack.Screen name="support" options={{ headerShown: false }} />
         <Stack.Screen name="account" options={{ headerShown: false }} />
+        <Stack.Screen name="benefits" options={{ headerShown: false }} />
         <Stack.Screen name="notifications" options={{ title: "Notificações" }} />
       </Stack.Protected>
     </Stack>

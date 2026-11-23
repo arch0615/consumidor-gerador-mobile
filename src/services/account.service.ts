@@ -20,7 +20,7 @@ export interface AccountService {
   updateProfile(update: ProfileUpdate): Promise<UserProfile>;
   listDocuments(): Promise<AccountDocument[]>;
   uploadDocument(kind: DocumentKind, file: LocalFile, onProgress: (progress: number) => void): Promise<AccountDocument>;
-  /** Short-lived URL to view/download a document. */
+  /** Short-lived https URL to view a document, or a local file URI when the file had to be downloaded with the session. */
   getDocumentUrl(documentId: string): Promise<string>;
   changePassword(currentPassword: string, newPassword: string): Promise<void>;
   getDeletionRequest(): Promise<AccountDeletionRequest | null>;

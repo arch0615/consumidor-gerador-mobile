@@ -45,3 +45,4 @@ yarn-error.*
 # live API validation (local)
 .live-report.json
 .env.test.local
+.android-build.log

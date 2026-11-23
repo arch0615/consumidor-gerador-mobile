@@ -71,6 +71,12 @@ describe("apiRequest", () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the session when the 401 is a backend database outage (legacy auth-api)", async () => {
+    fetchMock.mockResolvedValue(respond(401, { message: "Invalid `prisma.user.findUnique()` invocation: Error querying the database: FATAL: the database system is in recovery mode", error: "Unauthorized", statusCode: 401 }));
+    await expect(apiRequest({ api: "auth", method: "GET", path: "/v1/auth/me", schema })).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE", status: 401 });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
   it("refuses authenticated calls without a token (fail closed)", async () => {
     getIdToken.mockResolvedValue(null);
     await expect(apiRequest({ api: "auth", method: "GET", path: "/v1/auth/me", schema })).rejects.toMatchObject({ code: "AUTH_REQUIRED" });

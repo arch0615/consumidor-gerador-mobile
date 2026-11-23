@@ -10,6 +10,7 @@ export default function AccountLayout() {
       <Stack.Screen name="documents" options={{ title: "Documentos" }} />
       <Stack.Screen name="security" options={{ title: "Segurança" }} />
       <Stack.Screen name="delete" options={{ title: "Excluir conta" }} />
+      <Stack.Screen name="generator" options={{ title: "Quero ser gerador" }} />
     </Stack>
   );
 }

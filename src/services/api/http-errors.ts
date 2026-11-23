@@ -83,6 +83,17 @@ function safeUserMessage(text: string | undefined): string | undefined {
 }
 
 /**
+ * The legacy auth-api answers 401 with the database driver error during an outage (seen in
+ * homologation: "Invalid prisma.user.findUnique() … database system is in recovery mode").
+ * That is not an expired session: it must not sign the user out.
+ */
+export function isInfrastructureFailure(body: unknown): boolean {
+  const legacy = legacyErrorSchema.safeParse(body);
+  const text = legacy.success ? [legacy.data.message, legacy.data.error].flat().filter(Boolean).join(" ") : "";
+  return /prisma|database|connector|recovery mode|ECONNREFUSED|could not connect/i.test(text);
+}
+
+/**
  * Normalises an HTTP error response (both envelope styles) into an AppError.
  * 5xx never exposes backend text.
  */
@@ -94,8 +105,18 @@ export function apiErrorFromResponse(status: number, body: unknown, requestIdHea
     return new AppError(code, message ?? defaultErrorMessage(code), { status, requestId: canonical.data.error.requestId ?? requestIdHeader });
   }
 
-  const code = codeForStatus(status);
   const legacy = legacyErrorSchema.safeParse(body);
+  const legacyText = legacy.success ? [legacy.data.message, legacy.data.error].flat().filter(Boolean).join(" ") : "";
+  // The legacy auth-api answers 401 "Usuario nao encontrado no sistema" for a valid Firebase token
+  // whose user has no internal account (canonical API: 403 ACCOUNT_NOT_PROVISIONED). It is not an
+  // expired session, so it must not be reported as one.
+  if (status === 401 && isInfrastructureFailure(body)) {
+    return new AppError("SERVICE_UNAVAILABLE", defaultErrorMessage("SERVICE_UNAVAILABLE"), { status, requestId: requestIdHeader });
+  }
+  if (status === 401 && /usu[aá]rio n[aã]o encontrado/i.test(legacyText)) {
+    return new AppError("ACCOUNT_NOT_PROVISIONED", defaultErrorMessage("ACCOUNT_NOT_PROVISIONED"), { status, requestId: requestIdHeader });
+  }
+  const code = codeForStatus(status);
   let message: string | undefined;
   if (legacy.success && status < 500 && BACKEND_MESSAGE_CODES.has(code)) {
     const raw = legacy.data.message;

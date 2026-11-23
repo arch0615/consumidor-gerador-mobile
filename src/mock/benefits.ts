@@ -1,4 +1,4 @@
-import type { BenefitsOverview } from "@/types/domain";
+import type { BenefitsOverview, Redemption, ReferredPerson } from "@/types/domain";
 import { daysAgo } from "./calendar";
 import { demoProfile } from "./consumer";
 
@@ -28,3 +28,16 @@ export const benefits: BenefitsOverview = {
     usedThisMonth: 1
   }
 };
+
+export const demoRedemptions: Redemption[] = [
+  { id: "ped_002", rewardId: "rwd_003", rewardName: "Muda de árvore nativa", points: 300, status: "ENTREGUE", createdAt: daysAgo(60), version: 3 },
+  { id: "ped_001", rewardId: "rwd_002", rewardName: "Cupom iFood R$ 20", points: 400, status: "ENTREGUE", createdAt: daysAgo(35), version: 2 }
+];
+
+/** Names come masked from the API. */
+export const demoReferred: ReferredPerson[] = [
+  { id: "ind_001", name: "Carlos M***", createdAt: daysAgo(40), status: "ATIVO", rewardPoints: 250 },
+  { id: "ind_002", name: "Juliana R***", createdAt: daysAgo(6), status: "EM_ANALISE", rewardPoints: 0 },
+  { id: "ind_003", name: "Pedro S***", createdAt: daysAgo(70), status: "ATIVO", rewardPoints: 250 },
+  { id: "ind_004", name: "Ana L***", createdAt: daysAgo(2), status: "CADASTRADO", rewardPoints: 0 }
+];

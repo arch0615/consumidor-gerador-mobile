@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { AccountDocument, DocumentKind, DocumentValidation, LocalFile } from "@/types/domain";
 import { api } from "../api/apiClient";
-import { uploadToPresignedUrl } from "../api/file-transfer";
+import { downloadAuthenticatedFile, uploadToPresignedUrl } from "../api/file-transfer";
 import { zId, zList, zStringOrNull } from "../api/schema";
 
 /** Business-API document types (`tipo`, Swagger PresignUploadDto/ConfirmUploadDto). */
@@ -126,9 +126,22 @@ export async function uploadConsumerDocument(
 const signedUrlSchema = z
   .object({ signed_url: z.string().optional(), signedUrl: z.string().optional(), url: z.string().optional() })
   .transform((value) => value.signed_url ?? value.signedUrl ?? value.url ?? "")
-  .pipe(z.string().regex(/^https?:\/\//, "signed URL expected"));
+  // Object storage answers an absolute https URL; the homologation API answers an API-relative path
+  // (/v1/documentos/{id}/content…) that still requires the Bearer token.
+  .pipe(z.string().regex(/^(https?:\/\/|\/(api\/)?v1\/)/, "signed URL expected"));
 
-/** GET /v1/documentos/{id}/signed-url → short-lived https URL. */
+/** GET /v1/documentos/{id}/signed-url → short-lived https URL or API-relative path. */
 export function documentSignedUrl(documentId: string): Promise<string> {
   return api.get("business", `/v1/documentos/${encodeURIComponent(documentId)}/signed-url`, signedUrlSchema);
+}
+
+/**
+ * Something the app can open: the public https URL as is, or — for an API-relative signed path —
+ * the file downloaded with the Bearer token into the cache (local file URI).
+ */
+export async function openableDocumentUrl(documentId: string): Promise<string> {
+  const signed = await documentSignedUrl(documentId);
+  if (/^https:\/\//.test(signed)) return signed;
+  const document = await api.get("business", `/v1/documentos/${encodeURIComponent(documentId)}`, documentSchema);
+  return downloadAuthenticatedFile("business", signed.replace(/^\/api(?=\/v1\/)/, ""), document.name);
 }

@@ -1,6 +1,6 @@
 import type { EconomyMonth, EconomyOverview } from "@/types/domain";
 import type { EconomyService } from "../economy.service";
-import { fetchSnapshot, normaliseCompetencia, type SnapshotMonth } from "./business";
+import { baselineWithoutAcvel, fetchSnapshot, normaliseCompetencia, type SnapshotMonth } from "./business";
 
 const HISTORY_MONTHS = 12;
 const TREND_WINDOW = 3;
@@ -14,12 +14,12 @@ function sum(values: readonly number[]): number {
 }
 
 /**
- * One month for the charts. "Sem ACVEL" comes from the billing engine when the
- * month has an ACVEL invoice; legacy (Digital Grid) months fall back to
+ * One month for the charts. "Sem ACVEL" comes from the billing engine when it has a
+ * value; otherwise (legacy Digital Grid months, or an engine 0) it falls back to
  * distribuidora + ACVEL + economia, the same approximation as the web portal.
  */
 function toMonth(month: SnapshotMonth): EconomyMonth {
-  const totalWithoutAcvel = month.total_sem_acvel ?? month.valor_distribuidora + month.valor_total + month.economia_reais;
+  const totalWithoutAcvel = baselineWithoutAcvel(month);
   return {
     competencia: normaliseCompetencia(month.competencia),
     savings: round2(month.economia_reais),

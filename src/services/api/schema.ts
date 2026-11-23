@@ -21,9 +21,11 @@ export const zStringOrEmpty = z.string().nullish().transform((value) => value ??
 /** Identifier that may arrive as number or string. */
 export const zId = z.union([z.string().min(1), z.number()]).transform(String);
 
-/** Accepts `[...]` or `{ data: [...] }` (paginated) and returns the array. */
+/** Accepts `[...]`, `{ data: [...] }` or `{ items: [...] }` (paginated; support tickets) and returns the array. */
 export function zList<T extends z.ZodType>(item: T) {
-  return z.union([z.array(item), z.object({ data: z.array(item) })]).transform((value) => (Array.isArray(value) ? value : value.data));
+  return z
+    .union([z.array(item), z.object({ data: z.array(item) }), z.object({ items: z.array(item) })])
+    .transform((value) => (Array.isArray(value) ? value : "data" in value ? value.data : value.items));
 }
 
 /** For endpoints whose success body is irrelevant (204 or ignored JSON). */

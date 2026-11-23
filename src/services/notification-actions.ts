@@ -14,7 +14,11 @@ const LINK_RULES: readonly { pattern: RegExp; action: (match: RegExpExecArray, q
   { pattern: /^\/suporte\/([^/]+)\/?$/, action: (match) => (match[1] && match[1] !== "novo" ? { type: "SUPPORT_TICKET", resourceId: decodeURIComponent(match[1]) } : { type: "SUPPORT" }) },
   { pattern: /^\/suporte\/?$/, action: () => ({ type: "SUPPORT" }) },
   { pattern: /^\/(?:economia|bi)\/?/, action: () => ({ type: "ECONOMY" }) },
-  { pattern: /^\/(?:pontos|marketplace|indicacao)\/?/, action: () => ({ type: "BENEFITS" }) },
+  { pattern: /^\/pontos\/extrato\/?$/, action: () => ({ type: "POINTS_STATEMENT" }) },
+  { pattern: /^\/marketplace\/resgates\/?$/, action: () => ({ type: "REDEMPTIONS" }) },
+  { pattern: /^\/marketplace\/([^/]+)\/?$/, action: (match) => (match[1] ? { type: "REWARD", resourceId: decodeURIComponent(match[1]) } : { type: "BENEFITS" }) },
+  { pattern: /^\/indicacao(?:\/(?:regras|meus-indicados))?\/?$/, action: () => ({ type: "REFERRAL" }) },
+  { pattern: /^\/(?:pontos|marketplace)\/?/, action: () => ({ type: "BENEFITS" }) },
   { pattern: /^\/perfil\/documentos\/?/, action: () => ({ type: "DOCUMENTS" }) },
   { pattern: /^\/(?:dashboard|inicio)?\/?$/, action: () => ({ type: "HOME" }) }
 ];

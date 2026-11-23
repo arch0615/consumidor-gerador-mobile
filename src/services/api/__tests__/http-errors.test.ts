@@ -34,6 +34,12 @@ describe("apiErrorFromResponse", () => {
     expect(error.message).not.toMatch(/html/);
   });
 
+  it("maps the legacy 'user not in system' 401 to ACCOUNT_NOT_PROVISIONED (not an expired session)", () => {
+    const error = apiErrorFromResponse(401, { message: "Usuario nao encontrado no sistema", error: "Unauthorized", statusCode: 401 }, null);
+    expect(error.code).toBe("ACCOUNT_NOT_PROVISIONED");
+    expect(apiErrorFromResponse(401, { message: "Token invalido ou expirado", error: "Unauthorized", statusCode: 401 }, null).code).toBe("AUTH_TOKEN_EXPIRED");
+  });
+
   it("uses our own copy for 401/403/404 without envelope", () => {
     expect(apiErrorFromResponse(401, null, null).code).toBe("AUTH_TOKEN_EXPIRED");
     expect(apiErrorFromResponse(403, { message: "Forbidden resource" }, null).message).toBe("Seu perfil não tem permissão para acessar esta informação.");

@@ -9,15 +9,15 @@ import { AppError } from "@/utils/app-error";
 const PIX_POLL_INTERVAL_MS = 4000;
 
 export function useInvoices(filters: InvoiceFilters) {
-  return useQuery({ queryKey: queryKeys.invoices.list(filters), queryFn: () => invoiceService.list(filters), placeholderData: (previous) => previous });
+  return useQuery({ queryKey: queryKeys.invoices.list(filters), queryFn: () => invoiceService.getInvoices(filters), placeholderData: (previous) => previous });
 }
 
 export function useInvoice(invoiceId: string) {
-  return useQuery({ queryKey: queryKeys.invoices.detail(invoiceId), queryFn: () => invoiceService.get(invoiceId) });
+  return useQuery({ queryKey: queryKeys.invoices.detail(invoiceId), queryFn: () => invoiceService.getInvoice(invoiceId) });
 }
 
 export function usePayments() {
-  return useQuery({ queryKey: queryKeys.invoices.payments, queryFn: () => invoiceService.listPayments() });
+  return useQuery({ queryKey: queryKeys.invoices.payments, queryFn: () => invoiceService.getPaymentHistory() });
 }
 
 /**
@@ -27,7 +27,7 @@ export function usePayments() {
 export function useOpenInvoicePdf() {
   return useMutation({
     mutationFn: async (invoiceId: string) => {
-      const uri = await invoiceService.downloadPdf(invoiceId);
+      const uri = await invoiceService.downloadInvoicePdf(invoiceId);
       if (!(await Sharing.isAvailableAsync())) throw new AppError("NOT_SUPPORTED", "Não há aplicativo disponível para abrir PDFs neste aparelho.");
       await Sharing.shareAsync(uri, { mimeType: "application/pdf", UTI: "com.adobe.pdf", dialogTitle: "Fatura ACVEL" });
     }
@@ -36,7 +36,7 @@ export function useOpenInvoicePdf() {
 
 /** Reads the invoice's bank charge (Pix payload + expiry). */
 export function usePixCharge(invoiceId: string) {
-  return useQuery({ queryKey: queryKeys.invoices.pix(invoiceId), queryFn: () => invoiceService.getPixCharge(invoiceId), staleTime: Infinity, gcTime: 0 });
+  return useQuery({ queryKey: queryKeys.invoices.pix(invoiceId), queryFn: () => invoiceService.getExistingPix(invoiceId), staleTime: Infinity, gcTime: 0 });
 }
 
 /**
@@ -47,7 +47,7 @@ export function usePixStatus(invoiceId: string, enabled: boolean) {
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: [...queryKeys.invoices.pix(invoiceId), "status"],
-    queryFn: () => invoiceService.getChargeStatus(invoiceId),
+    queryFn: () => invoiceService.getPaymentStatus(invoiceId),
     enabled,
     refetchInterval: (current) => {
       const status = current.state.data;
@@ -66,5 +66,5 @@ export function usePixStatus(invoiceId: string, enabled: boolean) {
 }
 
 export function useBoleto(invoiceId: string) {
-  return useQuery({ queryKey: queryKeys.invoices.boleto(invoiceId), queryFn: () => invoiceService.getBoleto(invoiceId) });
+  return useQuery({ queryKey: queryKeys.invoices.boleto(invoiceId), queryFn: () => invoiceService.getExistingBoleto(invoiceId) });
 }

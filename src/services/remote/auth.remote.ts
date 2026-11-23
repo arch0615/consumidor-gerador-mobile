@@ -13,6 +13,7 @@ import { AppError, toAppError, type AppErrorCode } from "@/utils/app-error";
 import { api } from "../api/apiClient";
 import type { AuthService, RestoreResult } from "../auth.service";
 import { authStateReady, firebaseAuth, type FirebaseUser } from "../firebase/firebase";
+import { fetchConsumer, isConsumerOnboarded } from "./business";
 import { fetchMe } from "./me";
 
 // ── Firebase error mapping ────────────────────────────────────────────
@@ -61,12 +62,24 @@ async function signOutQuietly(): Promise<void> {
 
 /** Validates the Firebase session with the backend; rejected accounts are signed out. */
 async function validatedIdentity(): Promise<AccountIdentity> {
+  let identity: AccountIdentity;
   try {
-    return (await fetchMe()).identity;
+    identity = (await fetchMe()).identity;
   } catch (error) {
     const appError = toAppError(error);
     if (REJECTED_CODES.has(appError.code) || appError.code === "AUTH_TOKEN_EXPIRED") await signOutQuietly();
     throw appError;
+  }
+  return withEffectiveOnboarding(identity);
+}
+
+/** Approved consumers have finished onboarding even when /auth/me still says otherwise (web portal rule). */
+async function withEffectiveOnboarding(identity: AccountIdentity): Promise<AccountIdentity> {
+  if (identity.onboardingCompleted || identity.userType !== "CONSUMIDOR") return identity;
+  try {
+    return isConsumerOnboarded(await fetchConsumer()) ? { ...identity, onboardingCompleted: true } : identity;
+  } catch {
+    return identity;
   }
 }
 

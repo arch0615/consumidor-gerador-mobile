@@ -2,7 +2,7 @@ import type { AccountStatus, DashboardAlert, DashboardSummary, InvoiceSummary, R
 import { daysUntil } from "@/utils/format";
 import { DOCUMENT_KIND_LABEL, isResidenceRejected } from "@/utils/status-labels";
 import type { DashboardService } from "../dashboard.service";
-import { fetchConsumer, fetchSnapshot, normaliseCompetencia, snapshotInvoiceStatus, type Snapshot } from "./business";
+import { baselineWithoutAcvel, fetchConsumer, fetchSnapshot, isConsumerOnboarded, normaliseCompetencia, snapshotInvoiceStatus, type Snapshot } from "./business";
 import { fetchMe } from "./me";
 import { listConsumerDocuments } from "./documents";
 import { fetchUnreadCount } from "./notification.remote";
@@ -47,12 +47,14 @@ function nextInvoiceOf(snapshot: Snapshot): InvoiceSummary | null {
 export const remoteDashboardService: DashboardService = {
   async getSummary() {
     const snapshotRequest = fetchSnapshot();
-    const [meResult, snapshotResult, residencesResult, unreadResult, documentsResult] = await Promise.allSettled([
+    const consumerRequest = fetchConsumer();
+    const [meResult, snapshotResult, residencesResult, unreadResult, documentsResult, consumerResult] = await Promise.allSettled([
       fetchMe(),
       snapshotRequest,
       loadResidences(snapshotRequest),
       fetchUnreadCount(),
-      fetchConsumer().then((consumer) => (consumer ? listConsumerDocuments(consumer.id) : []))
+      consumerRequest.then((consumer) => (consumer ? listConsumerDocuments(consumer.id) : [])),
+      consumerRequest
     ]);
     // Without billing data *and* registrations there is nothing meaningful to show: surface the error.
     if (snapshotResult.status === "rejected" && residencesResult.status === "rejected") throw snapshotResult.reason;
@@ -66,7 +68,7 @@ export const remoteDashboardService: DashboardService = {
     const primary = residences.find(isActive) ?? residences[0] ?? null;
 
     const savingsTotal = months.reduce((sum, month) => sum + month.economia_reais, 0);
-    const withoutAcvel = months.reduce((sum, month) => sum + (month.total_sem_acvel ?? month.valor_distribuidora + month.valor_total + month.economia_reais), 0);
+    const withoutAcvel = months.reduce((sum, month) => sum + baselineWithoutAcvel(month), 0);
 
     const alerts: DashboardAlert[] = [];
     if (nextInvoice?.status === "ATRASADO") {
@@ -90,7 +92,8 @@ export const remoteDashboardService: DashboardService = {
         alerts.push({ id: `rejected-${residence.id}`, tone: "danger", title: "Cadastro de unidade precisa de ajustes", message: residence.rejectionReason ?? `Revise os dados da UC ${residence.ucNumber}.`, action: { type: "RESIDENCE_DETAILS", resourceId: residence.id }, actionLabel: "Corrigir" });
       }
     }
-    if (identity && !identity.onboardingCompleted && identity.onboardingStatus !== "EM_ANALISE") {
+    const onboarded = Boolean(identity?.onboardingCompleted) || isConsumerOnboarded(valueOf(consumerResult, null));
+    if (identity && !onboarded && identity.onboardingStatus !== "EM_ANALISE") {
       alerts.push({ id: "onboarding", tone: "info", title: "Finalize seu cadastro", message: "Envie seus documentos e aceite os termos no portal ACVEL para ativar sua conta.", action: null, actionLabel: null });
     }
 

@@ -2,7 +2,7 @@ import { Stack, useRouter } from "expo-router";
 import { BellOff, CheckCheck } from "lucide-react-native";
 import { useState } from "react";
 import { View } from "react-native";
-import { ACVELCard, EmptyState, IconButton, ListItem, QueryView, Screen, SectionHeader, SegmentedControl, type Segment } from "@/components";
+import { ACVELCard, EmptyState, IconButton, InfoCard, ListItem, QueryView, Screen, SectionHeader, SegmentedControl, type Segment } from "@/components";
 import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications } from "@/features/notifications/hooks/useNotifications";
 import { groupNotifications, NOTIFICATION_CATEGORY_META } from "@/features/notifications/notification-meta";
 import { useRefreshControl } from "@/hooks/useRefreshControl";
@@ -41,6 +41,7 @@ export default function NotificationsScreen() {
             unreadCount > 0 ? <IconButton icon={CheckCheck} accessibilityLabel="Marcar todas como lidas" onPress={() => markAllRead.mutate()} /> : null
         }}
       />
+      {markAllRead.isError ? <InfoCard tone="warning" title="Não foi possível marcar como lidas" message="Verifique sua conexão e tente novamente." /> : null}
       <SegmentedControl segments={FILTERS} value={filter} onChange={setFilter} accessibilityLabel="Filtrar notificações" />
       <QueryView
         query={notifications}
